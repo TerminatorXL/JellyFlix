@@ -8,8 +8,10 @@
  * <style> inside the React root, i.e. last) win over it at equal specificity. So this file is a
  * floor, not a ceiling — restyle any .jfx-pause* rule from your own Custom CSS and it takes over.
  *
- * Every colour, radius and font is read from a --jflix-* token with a hard-coded fallback, so the
- * card looks right on a stock Jellyfin and picks up a theme's tokens when one defines them.
+ * The card sits over video, so its text is white and its scrim is black whatever theme is running —
+ * those are not theme decisions. The one piece that does follow the theme is the pause glyph, which
+ * takes the Abyss accent (--abyss-accent, published as R, G, B without an rgb() wrapper) and falls
+ * back to this file's own red when Abyss is not installed.
  *
  * WHERE THE CARD SITS
  * -------------------
@@ -35,15 +37,15 @@
      * 320 ms delay on the way out is what lets the fade finish before the card is really gone. */
     visibility: hidden;
     pointer-events: none;
-    color: var(--jflix-text-primary, #fff);
-    font-family: var(--jflix-font, inherit);
-    transition: opacity 320ms cubic-bezier(.32, .94, .6, 1), visibility 0s linear 320ms;
+    color: #fff;
+    font-family: inherit;
+    transition: opacity 320ms var(--abyss-ease, cubic-bezier(.32, .94, .6, 1)), visibility 0s linear 320ms;
 }
 
 .jfx-pause[data-jfx-open] {
     opacity: 1;
     visibility: visible;
-    transition: opacity 320ms cubic-bezier(.32, .94, .6, 1), visibility 0s linear 0s;
+    transition: opacity 320ms var(--abyss-ease, cubic-bezier(.32, .94, .6, 1)), visibility 0s linear 0s;
 }
 
 /* --- Scrim ---------------------------------------------------------------
@@ -78,7 +80,7 @@
     right: 5.5%;
     max-width: 38rem;
     transform: translateY(-50%);
-    text-shadow: var(--jflix-text-shadow, 0 1px 3px rgba(0, 0, 0, .9));
+    text-shadow: 0 1px 3px rgba(0, 0, 0, .9);
 }
 
 /* --- Eyebrow ("Paused" + a CSS-drawn pause glyph) ------------------------ */
@@ -91,14 +93,16 @@
     font-weight: 600;
     letter-spacing: .22em;
     text-transform: uppercase;
-    color: var(--jflix-text-secondary, rgba(255, 255, 255, .72));
+    color: rgba(255, 255, 255, .72);
 }
 
-/* Two bars, no icon font: the OSD's material-icons sheet is not guaranteed to be loaded yet. */
+/* Two bars, no icon font: the OSD's material-icons sheet is not guaranteed to be loaded yet.
+ * The one spot of colour on the card, so it follows the theme. */
 .jfx-pause-glyph {
     width: .62em;
     height: .82em;
     margin-right: .7em;
+    color: rgb(var(--abyss-accent, 229, 9, 20));
     background-image: linear-gradient(90deg,
         currentColor 0%, currentColor 32%,
         transparent 32%, transparent 68%,
@@ -140,7 +144,7 @@
     font-size: .85rem;
     font-weight: 500;
     letter-spacing: .01em;
-    color: var(--jflix-text-secondary, rgba(255, 255, 255, .72));
+    color: rgba(255, 255, 255, .72);
 }
 
 .jfx-pause-overview {
@@ -151,7 +155,7 @@
     margin: 0;
     font-size: 1rem;
     line-height: 1.5;
-    color: var(--jflix-text-primary, rgba(255, 255, 255, .92));
+    color: rgba(255, 255, 255, .92);
 }
 
 /* --- Small viewports ------------------------------------------------------

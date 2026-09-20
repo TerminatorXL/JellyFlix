@@ -1,3 +1,7 @@
+**1.2.3.0**
+
+- The pause glyph follows the [Abyss](https://github.com/AumGupta/abyss-jellyfin) accent when that theme is installed. The rest of the card stays white on a black scrim, because it sits over video and that is not a theme decision.
+
 **1.2.2.0**
 
 - A plugin icon, shown in the Jellyfin plugin list.

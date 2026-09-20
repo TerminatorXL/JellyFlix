@@ -1,6 +1,10 @@
+**1.1.1.0**
+
+- Follows the [Abyss](https://github.com/AumGupta/abyss-jellyfin) palette when it is installed: accent, glass tint, corner radius and easing all come from its `--abyss-*` variables, with this stylesheet's own values as fallbacks. The frosted backdrop is applied only when Abyss defines the blur, so it costs nothing on a TV otherwise.
+
 **1.1.0.0**
 
-- Usable with a TV remote. The drawer was unreachable: opening it left focus on the OSD position slider and the arrow keys walked the player's control shelf, because in the TV layout jellyfin-web owns those keys while the player is up. Focus now lands on the episode you are watching, Up/Down walks the list, Left/Right changes season on the selector instead of seeking the video underneath, Enter starts the highlighted episode, and Back/Escape closes.
+- Usable with a TV remote: focus lands on the episode you are watching, Up/Down walks the list, Left/Right changes season instead of seeking, Enter starts the episode, Back closes.
 
 **1.0.4.0**
 
@@ -8,7 +12,3 @@
 - A plugin icon, shown in the Jellyfin plugin list.
 
 **1.0.0.0** — first release.
-
-- A button in the player OSD, shown while an episode is playing.
-- A drawer listing the season's episodes with thumbnails, watched state and progress.
-- Season selector; picking an episode starts it.

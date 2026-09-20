@@ -88,6 +88,25 @@ JellyFlixAddon.setConfig({ debug: true })     // logi [JellyFlix] w konsoli
 JellyFlixAddon.setConfig(null)                // skasuj zapamiętane zmiany
 ```
 
+## Motywy
+
+Obie nakładki czytają paletę motywu [Abyss](https://github.com/AumGupta/abyss-jellyfin), jeśli jest
+zainstalowany — akcent, szklana tafla, zaokrąglenie i krzywa animacji pochodzą z jego zmiennych
+`--abyss-*`, więc szuflada wygląda jak reszta tego motywu, a nie jak coś doklejonego z zewnątrz. Każda
+z nich ma jako zapas własną wartość wtyczki, więc bez Abyssa nic się nie zmienia. Wyjątkiem jest
+mrożone tło: włącza się **tylko** wtedy, gdy Abyss zdefiniuje rozmycie — jest kosztowne na
+telewizorze i nikt nie powinien za nie płacić, jeśli sam się na nie nie zdecydował.
+
+Ustaw własny akcent, a szuflada za nim pójdzie — Abyss przyjmuje go jako R, G, B:
+
+```css
+:root { --abyss-accent: 229, 9, 20; }
+```
+
+Poza tym to zwykły Custom CSS: arkusze wtyczek są wstrzykiwane jako **pierwsze** dziecko `<head>`,
+czyli są najsłabszym arkuszem na stronie — więc każda Twoja reguła `.jfx-pause*` czy `.jfx-eps*`
+wygrywa przy równej specyficzności.
+
 ## Kiedy nic się nie pokazuje
 
 Każda wtyczka odpowiada pod adresem statusu, który mówi, czy wstrzykuje swój skrypt, a jeśli nie — dlaczego:

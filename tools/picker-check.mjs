@@ -1,9 +1,9 @@
 // Functional check for the episodePicker module: the OSD button, the drawer, the season selector,
 // and actually switching episode.
-//   tools/pw.sh tools/picker-check.mjs [--profile modern-desktop|tv|modern-mobile] [--out name]
+//   tools/pw.sh tools/picker-check.mjs [--profile modern-desktop|tv|android-webview] [--css file] [--out name]
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { root, sleep, go, login, launch, newContext, api, USER, arg } from './lib.mjs';
+import { root, sleep, go, login, launch, newContext, api, USER, arg, readInjectCss } from './lib.mjs';
 
 const me = (await api('/Users')).find(u => u.Name === USER);
 const series = (await api(`/Items?userId=${me.Id}&Recursive=true&IncludeItemTypes=Series&SortBy=SortName`)).Items;
@@ -20,7 +20,8 @@ const outDir = join(root, '_shots', arg('out', 'episode-picker'));
 mkdirSync(outDir, { recursive: true });
 
 const browser = await launch();
-const { context } = await newContext(browser, arg('profile', 'modern-desktop'));
+const { context } = await newContext(browser, arg('profile', 'modern-desktop'),
+    { injectCss: readInjectCss(arg('css', '')) });
 const page = await context.newPage();
 const errors = [];
 page.on('pageerror', e => errors.push('pageerror: ' + e.message));

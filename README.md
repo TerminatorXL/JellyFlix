@@ -88,6 +88,25 @@ JellyFlixAddon.setConfig({ debug: true })     // [JellyFlix] tracing in the cons
 JellyFlixAddon.setConfig(null)                // forget the stored overrides
 ```
 
+## Themes
+
+Both overlays read the [Abyss](https://github.com/AumGupta/abyss-jellyfin) theme's palette when it is
+installed — accent, glass tint, corner radius and easing come from its `--abyss-*` variables, so the
+drawer looks like the rest of that theme rather than like a stranger dropped on top of it. Each one
+falls back to the plugin's own value, so nothing changes without Abyss. The frosted backdrop is the
+exception: it is applied *only* when Abyss defines the blur, because it is expensive on a TV and
+nobody should pay for it unless they already opted in.
+
+Set your own accent and the drawer follows it — Abyss takes it as R, G, B:
+
+```css
+:root { --abyss-accent: 229, 9, 20; }
+```
+
+Anything else is ordinary Custom CSS: the plugin stylesheets are injected as the *first* child of
+`<head>`, which makes them the weakest sheet on the page, so any `.jfx-pause*` or `.jfx-eps*` rule
+you write wins at equal specificity.
+
 ## When something does not show up
 
 Each plugin answers a status URL that says whether it is injecting its script and, when it is not, why:
