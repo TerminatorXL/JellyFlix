@@ -1,0 +1,6 @@
+# Local dev/test scaffolding (not part of the theme)
+_ref/
+_test/
+_shots/
+node_modules/
+package-lock.json

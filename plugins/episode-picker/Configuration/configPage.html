@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Episode Picker</title>
+</head>
+<body>
+<div id="EpisodePickerConfigPage" data-role="page" class="page type-interior pluginConfigurationPage"
+     data-require="emby-input,emby-button,emby-checkbox,emby-select">
+    <div data-role="content">
+        <div class="content-primary">
+            <form id="EpisodePickerConfigForm">
+
+                <div class="verticalSection">
+                    <h2 class="sectionTitle">Episode Picker</h2>
+                    <p class="fieldDescription">
+                        While an episode is playing, an extra button appears in the player controls. It
+                        opens a drawer with the episodes of the current season and a season selector;
+                        picking one starts it. Saving takes effect on the next page load — no restart.
+                    </p>
+                </div>
+
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="emby-checkbox-label">
+                        <input is="emby-checkbox" type="checkbox" id="Enabled" />
+                        <span>Enable the plugin</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">
+                        Off means the script tag is not injected into the web client at all.
+                    </div>
+                </div>
+
+                <div class="checkboxContainer">
+                    <label class="emby-checkbox-label">
+                        <input is="emby-checkbox" type="checkbox" id="PickerEnabled" />
+                        <span>Show the button in the player</span>
+                    </label>
+                </div>
+
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="emby-checkbox-label">
+                        <input is="emby-checkbox" type="checkbox" id="Thumbnails" />
+                        <span>Episode thumbnails</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">
+                        Off makes the rows compact and saves one image request per episode — worth it on
+                        a slow connection or a weak TV box.
+                    </div>
+                </div>
+
+                <div class="checkboxContainer">
+                    <label class="emby-checkbox-label">
+                        <input is="emby-checkbox" type="checkbox" id="ShowOverview" />
+                        <span>Show each episode's synopsis</span>
+                    </label>
+                </div>
+
+                <div class="inputContainer">
+                    <input is="emby-input" type="number" id="OverviewChars" min="0" max="2000" step="10"
+                           label="Synopsis length (characters)" />
+                    <div class="fieldDescription">
+                        A hard cap. The list also clamps the text to a few lines in CSS, so this mostly
+                        decides how much is there to clamp.
+                    </div>
+                </div>
+
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="emby-checkbox-label">
+                        <input is="emby-checkbox" type="checkbox" id="Debug" />
+                        <span>Console logging</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">
+                        Writes <code>[JellyFlix]</code> tracing to the browser console.
+                    </div>
+                </div>
+
+                <div>
+                    <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                        <span>Save</span>
+                    </button>
+                </div>
+
+            </form>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        (function () {
+            var pluginId = 'c7d4e9a1-3f62-4b85-9e07-5a1d8c2b6f34';
+            var checkboxes = ['Enabled', 'PickerEnabled', 'Thumbnails', 'ShowOverview', 'Debug'];
+
+            function view() {
+                return document.querySelector('#EpisodePickerConfigPage');
+            }
+
+            document.querySelector('#EpisodePickerConfigPage').addEventListener('pageshow', function () {
+                Dashboard.showLoadingMsg();
+                ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                    var page = view();
+                    checkboxes.forEach(function (name) {
+                        page.querySelector('#' + name).checked = !!config[name];
+                    });
+                    page.querySelector('#OverviewChars').value = config.OverviewChars;
+                    Dashboard.hideLoadingMsg();
+                });
+            });
+
+            document.querySelector('#EpisodePickerConfigForm').addEventListener('submit', function (e) {
+                e.preventDefault();
+                Dashboard.showLoadingMsg();
+                ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                    var page = view();
+                    checkboxes.forEach(function (name) {
+                        config[name] = page.querySelector('#' + name).checked;
+                    });
+                    config.OverviewChars = parseInt(page.querySelector('#OverviewChars').value, 10) || 0;
+                    ApiClient.updatePluginConfiguration(pluginId, config).then(function (result) {
+                        Dashboard.processPluginConfigurationUpdateResult(result);
+                    });
+                });
+                return false;
+            });
+        })();
+    </script>
+</div>
+</body>
+</html>

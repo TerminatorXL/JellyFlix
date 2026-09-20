@@ -1,0 +1,302 @@
+/* ============================================================================
+ * Baseline look for the episode picker (module `episodePicker`).
+ *
+ * Injected as the FIRST child of <head>, i.e. the weakest sheet on the page, so any Custom CSS
+ * overrides it at equal specificity. Colours come from --jflix-* tokens with hard-coded fallbacks,
+ * so it looks right on a stock Jellyfin and picks up a theme's palette when one defines them.
+ *
+ * The panel mounts as the LAST child of #videoOsdPage, which is how it paints above the control
+ * shelf without a z-index. The shelf itself is pointer-events:none except for .osdControls, so the
+ * scrim below has to opt back IN to pointer events to be clickable.
+ *
+ * Same constraints as the rest of the bundle: no color-mix(), no CSS nesting, no `inset` shorthand,
+ * no `transition: all`, type sizes in rem.
+ * ==========================================================================*/
+
+.jfx-eps {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    opacity: 0;
+    visibility: hidden;
+    color: var(--jflix-text-primary, #fff);
+    font-family: var(--jflix-font, inherit);
+    transition: opacity 240ms cubic-bezier(.32, .94, .6, 1), visibility 0s linear 240ms;
+}
+
+.jfx-eps[data-jfx-open] {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 240ms cubic-bezier(.32, .94, .6, 1), visibility 0s linear 0s;
+}
+
+.jfx-eps-scrim {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    background-color: rgba(0, 0, 0, .55);
+    pointer-events: auto;
+}
+
+/* --- The sheet ------------------------------------------------------------
+ * A right-hand drawer on anything wide enough, because the picture stays watchable beside it. */
+
+/* Starts BELOW the app bar: the top toolbar (back arrow, title, SyncPlay, Cast) is a sibling of
+ * #videoOsdPage painted after it, so it lands on top of anything the drawer puts up there — the
+ * close button ended up underneath the Cast icon. Dropping the sheet clears it and leaves those
+ * controls usable while the drawer is open. */
+.jfx-eps-sheet {
+    position: absolute;
+    top: 3.2rem;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    width: 34rem;
+    max-width: 100%;
+    background-color: var(--jflix-surface-1, #101010);
+    box-shadow: -1px 0 24px rgba(0, 0, 0, .6);
+    pointer-events: auto;
+    transform: translateX(2rem);
+    transition: transform 240ms cubic-bezier(.32, .94, .6, 1);
+}
+
+.jfx-eps[data-jfx-open] .jfx-eps-sheet {
+    transform: translateX(0);
+}
+
+/* --- Header --------------------------------------------------------------- */
+
+.jfx-eps-head {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+    padding: 1.1rem 1.1rem .8rem;
+    border-bottom: 1px solid var(--jflix-line-subtle, rgba(255, 255, 255, .12));
+}
+
+.jfx-eps-series {
+    flex: 1 1 auto;
+    overflow: hidden;
+    margin-right: .8rem;
+    font-size: 1.15rem;
+    font-weight: 700;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.jfx-eps-seasons {
+    flex: 0 0 auto;
+    max-width: 12rem;
+    padding: .35rem 1.6rem .35rem .6rem;
+    border: 1px solid var(--jflix-line-subtle, rgba(255, 255, 255, .22));
+    border-radius: var(--jflix-radius-sm, 4px);
+    background-color: var(--jflix-surface-2, #1c1c1c);
+    color: inherit;
+    font-family: inherit;
+    font-size: .9rem;
+}
+
+.jfx-eps-close {
+    flex: 0 0 auto;
+    margin-left: .4rem;
+}
+
+/* --- List ----------------------------------------------------------------- */
+
+.jfx-eps-list {
+    flex: 1 1 auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: .5rem;
+}
+
+.jfx-eps-item {
+    display: flex;
+    align-items: flex-start;
+    width: 100%;
+    margin: 0 0 .25rem;
+    padding: .6rem;
+    border: 0;
+    border-radius: var(--jflix-radius-md, 6px);
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.jfx-eps-item:hover,
+.jfx-eps-item:focus-visible {
+    background-color: var(--jflix-overlay-hover, rgba(255, 255, 255, .09));
+    outline: none;
+}
+
+.jfx-eps-item:focus-visible {
+    box-shadow: inset 0 0 0 2px var(--jflix-accent, #e50914);
+}
+
+.jfx-eps-item[data-jfx-current] {
+    background-color: var(--jflix-overlay-selected, rgba(255, 255, 255, .14));
+}
+
+.jfx-eps-index {
+    flex: 0 0 1.6rem;
+    padding-top: .15rem;
+    font-size: 1rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--jflix-text-secondary, rgba(255, 255, 255, .66));
+}
+
+.jfx-eps-item[data-jfx-current] .jfx-eps-index {
+    color: var(--jflix-accent, #e50914);
+}
+
+/* --- Thumbnail ------------------------------------------------------------
+ * padding-bottom for the aspect box, not aspect-ratio: the TV floor is Chromium 68. */
+
+.jfx-eps-thumb {
+    position: relative;
+    flex: 0 0 7.5rem;
+    height: 0;
+    padding-bottom: 4.22rem;              /* 16:9 of 7.5rem */
+    margin-right: .8rem;
+    overflow: hidden;
+    border-radius: var(--jflix-radius-xs, 3px);
+    background-color: var(--jflix-surface-3, #262626);
+}
+
+.jfx-eps-thumb img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* How far through the episode the viewer already is. */
+.jfx-eps-progress {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 3px;
+    background-color: var(--jflix-accent, #e50914);
+}
+
+.jfx-eps-played {
+    position: absolute;
+    top: .2rem;
+    right: .2rem;
+    padding: .05rem;
+    border-radius: 50%;
+    background-color: rgba(0, 0, 0, .7);
+    font-size: .9rem;
+    line-height: 1;
+}
+
+/* --- Text ----------------------------------------------------------------- */
+
+.jfx-eps-text {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.jfx-eps-title {
+    display: block;
+    font-size: .95rem;
+    font-weight: 600;
+    line-height: 1.25;
+}
+
+.jfx-eps-meta {
+    display: block;
+    margin-top: .1rem;
+    font-size: .8rem;
+    color: var(--jflix-text-secondary, rgba(255, 255, 255, .66));
+}
+
+.jfx-eps-overview {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+    margin-top: .3rem;
+    font-size: .82rem;
+    line-height: 1.4;
+    color: var(--jflix-text-secondary, rgba(255, 255, 255, .72));
+}
+
+.jfx-eps-empty {
+    padding: 2rem 1rem;
+    text-align: center;
+    color: var(--jflix-text-secondary, rgba(255, 255, 255, .66));
+}
+
+/* --- Small viewports ------------------------------------------------------ */
+
+@media (max-width: 43em) {
+    .jfx-eps-sheet {
+        width: 100%;
+    }
+
+    .jfx-eps-thumb {
+        flex-basis: 5.5rem;
+        padding-bottom: 3.1rem;
+    }
+
+    .jfx-eps-overview {
+        -webkit-line-clamp: 2;
+    }
+}
+
+@media (max-height: 28em) {
+    .jfx-eps-sheet {
+        top: 2.6rem;
+    }
+
+    .jfx-eps-overview {
+        display: none;
+    }
+}
+
+/* --- Accessibility preferences -------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+    .jfx-eps,
+    .jfx-eps-sheet {
+        transition: none;
+    }
+
+    .jfx-eps-sheet {
+        transform: none;
+    }
+}
+
+@media (prefers-contrast: more) {
+    .jfx-eps-scrim {
+        background-color: rgba(0, 0, 0, .8);
+    }
+
+    .jfx-eps-meta,
+    .jfx-eps-overview {
+        color: #fff;
+    }
+}
+
+@media (forced-colors: active) {
+    .jfx-eps-sheet {
+        border-left: 1px solid CanvasText;
+        forced-color-adjust: none;
+        background-color: Canvas;
+    }
+
+    .jfx-eps-item[data-jfx-current] {
+        outline: 2px solid Highlight;
+    }
+}

@@ -1,0 +1,229 @@
+/* ============================================================================
+ * Baseline look for the pause info card (module `pauseInfo`).
+ *
+ * WHERE THIS SHEET SITS
+ * ---------------------
+ * JFX.util.injectCss() puts it in as the FIRST child of <head>, which makes it the weakest
+ * stylesheet on the page: Jellyfin's own CSS and, above all, the theme's Custom CSS (rendered as a
+ * <style> inside the React root, i.e. last) win over it at equal specificity. So this file is a
+ * floor, not a ceiling — restyle any .jfx-pause* rule from your own Custom CSS and it takes over.
+ *
+ * Every colour, radius and font is read from a --jflix-* token with a hard-coded fallback, so the
+ * card looks right on a stock Jellyfin and picks up a theme's tokens when one defines them.
+ *
+ * WHERE THE CARD SITS
+ * -------------------
+ * The module inserts .jfx-pause into .videoPlayerContainer, directly after the <video>:
+ *   - the container is position:fixed, so `position:absolute` here anchors to the viewport box;
+ *   - no z-index anywhere, deliberately. The OSD (#videoOsdPage, inside a later body child) paints
+ *     above the card by DOM order alone, and so do the subtitle layers, which are later siblings.
+ *     A z-index here would put the card over the subtitles.
+ *
+ * Written to the same constraints the TV browsers impose: no color-mix(), no CSS nesting, no
+ * `inset` shorthand, no `transition: all`, no `will-change`, type sizes in rem only.
+ * ==========================================================================*/
+
+.jfx-pause {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    opacity: 0;
+    /* visibility, not display: it keeps the faded-out card out of the accessibility tree (no stale
+     * synopsis read out after playback resumes) while still allowing the opacity transition. The
+     * 320 ms delay on the way out is what lets the fade finish before the card is really gone. */
+    visibility: hidden;
+    pointer-events: none;
+    color: var(--jflix-text-primary, #fff);
+    font-family: var(--jflix-font, inherit);
+    transition: opacity 320ms cubic-bezier(.32, .94, .6, 1), visibility 0s linear 320ms;
+}
+
+.jfx-pause[data-jfx-open] {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 320ms cubic-bezier(.32, .94, .6, 1), visibility 0s linear 0s;
+}
+
+/* --- Scrim ---------------------------------------------------------------
+ * Horizontal ramp so the right two-thirds of the frame stay watchable; the flat dim on top is
+ * what makes white text legible over a bright shot, and it is what `dim: false` turns off. */
+
+.jfx-pause-scrim {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    background-image: linear-gradient(90deg,
+        rgba(0, 0, 0, .94) 0%,
+        rgba(0, 0, 0, .86) 26%,
+        rgba(0, 0, 0, .58) 50%,
+        rgba(0, 0, 0, .18) 76%,
+        rgba(0, 0, 0, 0) 100%);
+}
+
+.jfx-pause-dim .jfx-pause-scrim {
+    background-color: rgba(0, 0, 0, .38);
+}
+
+/* --- Text column ---------------------------------------------------------
+ * Vertically centred, and kept clear of the OSD shelf at the bottom of the frame. */
+
+.jfx-pause-body {
+    position: absolute;
+    top: 50%;
+    left: 5.5%;
+    right: 5.5%;
+    max-width: 38rem;
+    transform: translateY(-50%);
+    text-shadow: var(--jflix-text-shadow, 0 1px 3px rgba(0, 0, 0, .9));
+}
+
+/* --- Eyebrow ("Paused" + a CSS-drawn pause glyph) ------------------------ */
+
+.jfx-pause-eyebrow {
+    display: flex;
+    align-items: center;
+    margin: 0 0 .9rem;
+    font-size: .7rem;
+    font-weight: 600;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--jflix-text-secondary, rgba(255, 255, 255, .72));
+}
+
+/* Two bars, no icon font: the OSD's material-icons sheet is not guaranteed to be loaded yet. */
+.jfx-pause-glyph {
+    width: .62em;
+    height: .82em;
+    margin-right: .7em;
+    background-image: linear-gradient(90deg,
+        currentColor 0%, currentColor 32%,
+        transparent 32%, transparent 68%,
+        currentColor 68%, currentColor 100%);
+}
+
+/* --- Logo / headline ------------------------------------------------------
+ * The logo is the series logo for an episode and the film's own for a movie; .jfx-pause-title is
+ * the text fallback for everything without one, and the two are never shown together. */
+
+.jfx-pause-logo {
+    display: block;
+    width: auto;
+    max-width: 26rem;     /* not min(): CSS Values 4 math is Chromium 79+, the TV floor is 68 */
+    max-height: 7.5rem;
+    margin: 0 0 1rem;
+    object-fit: contain;
+    object-position: left bottom;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, .55));
+}
+
+.jfx-pause-title {
+    margin: 0 0 .75rem;
+    font-size: 2.4rem;
+    font-weight: 800;
+    line-height: 1.08;
+    letter-spacing: -.01em;
+}
+
+.jfx-pause-subtitle {
+    margin: 0 0 .5rem;
+    font-size: 1.15rem;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.jfx-pause-meta {
+    margin: 0 0 .9rem;
+    font-size: .85rem;
+    font-weight: 500;
+    letter-spacing: .01em;
+    color: var(--jflix-text-secondary, rgba(255, 255, 255, .72));
+}
+
+.jfx-pause-overview {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 6;
+    overflow: hidden;
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: var(--jflix-text-primary, rgba(255, 255, 255, .92));
+}
+
+/* --- Small viewports ------------------------------------------------------
+ * A phone in landscape is the common playback case: 844x390 leaves almost no vertical room, so the
+ * synopsis gets clamped rather than pushed off the frame. */
+
+@media (max-width: 43em) {
+    .jfx-pause-body {
+        left: 4.5%;
+        right: 4.5%;
+        max-width: 26rem;
+    }
+
+    .jfx-pause-logo {
+        max-width: 15rem;
+        max-height: 4.5rem;
+    }
+
+    .jfx-pause-title {
+        font-size: 1.7rem;
+    }
+
+    .jfx-pause-subtitle {
+        font-size: 1rem;
+    }
+
+    .jfx-pause-overview {
+        -webkit-line-clamp: 4;
+        font-size: .9rem;
+    }
+}
+
+@media (max-height: 28em) {
+    .jfx-pause-eyebrow {
+        margin-bottom: .6rem;
+    }
+
+    .jfx-pause-logo {
+        max-height: 3.6rem;
+    }
+
+    .jfx-pause-overview {
+        -webkit-line-clamp: 3;
+    }
+}
+
+/* --- Accessibility preferences ------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+    .jfx-pause {
+        transition: none;
+    }
+}
+
+@media (prefers-contrast: more) {
+    .jfx-pause-scrim {
+        background-color: rgba(0, 0, 0, .72);
+    }
+
+    .jfx-pause-meta {
+        color: #fff;
+    }
+}
+
+@media (forced-colors: active) {
+    .jfx-pause-scrim {
+        background-color: Canvas;
+        background-image: none;
+        forced-color-adjust: none;
+    }
+
+    .jfx-pause-body {
+        text-shadow: none;
+    }
+}

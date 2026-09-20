@@ -1,0 +1,11 @@
+{
+  "guid": "b1f0a6e2-9c3d-4a7f-8e15-2d6c4b9a7f03",
+  "name": "Pause Info Card",
+  "assembly": "Jellyfin.Plugin.PauseInfoCard",
+  "slug": "pause-info-card",
+  "category": "General",
+  "owner": "TerminatorXL",
+  "targetAbi": "12.0.0.0",
+  "overview": "Netflix-style pause info card for the Jellyfin web client",
+  "description": "Pause playback and the film or series logo, the episode title and the synopsis fade in over the frame. Plus optional CSS hooks: row names, scroll position and card metadata."
+}

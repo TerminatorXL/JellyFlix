@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Pause Info Card</title>
+</head>
+<body>
+<div id="PauseInfoCardConfigPage" data-role="page" class="page type-interior pluginConfigurationPage"
+     data-require="emby-input,emby-button,emby-checkbox,emby-select">
+    <div data-role="content">
+        <div class="content-primary">
+            <form id="PauseInfoCardConfigForm">
+
+                <div class="verticalSection">
+                    <h2 class="sectionTitle">Pause Info Card</h2>
+                    <p class="fieldDescription">
+                        The settings below are handed to the web client as
+                        <code>window.JELLYFLIX_ADDON_CONFIG</code>. Saving takes effect on the next page
+                        load — no server restart.
+                    </p>
+                </div>
+
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="emby-checkbox-label">
+                        <input is="emby-checkbox" type="checkbox" id="Enabled" />
+                        <span>Enable the add-on</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">
+                        Off means the script tag is not injected into the web client at all.
+                    </div>
+                </div>
+
+                <div class="verticalSection">
+                    <h3 class="sectionTitle">Pause info card</h3>
+                    <p class="fieldDescription">
+                        Pause playback and the film or series logo, the episode title and the synopsis
+                        fade in over the frame.
+                    </p>
+                </div>
+
+                <div class="checkboxContainer">
+                    <label class="emby-checkbox-label">
+                        <input is="emby-checkbox" type="checkbox" id="PauseInfoEnabled" />
+                        <span>Show the card on pause</span>
+                    </label>
+                </div>
+
+                <div class="inputContainer">
+                    <input is="emby-input" type="number" id="PauseInfoDelayMs" min="0" max="10000" step="50"
+                           label="Delay before it appears (ms)" />
+                    <div class="fieldDescription">
+                        A pause shorter than this is almost always a seek. 350 is a good default; raise it
+                        if you scrub a lot.
+                    </div>
+                </div>
+
+                <div class="checkboxContainer">
+                    <label class="emby-checkbox-label">
+                        <input is="emby-checkbox" type="checkbox" id="PauseInfoDim" />
+                        <span>Darken the whole frame</span>
+                    </label>
+                </div>
+
+                <div class="checkboxContainer">
+                    <label class="emby-checkbox-label">
+                        <input is="emby-checkbox" type="checkbox" id="PauseInfoShowLogo" />
+                        <span>Use the logo image when there is one</span>
+                    </label>
+                </div>
+
+                <div class="checkboxContainer">
+                    <label class="emby-checkbox-label">
+                        <input is="emby-checkbox" type="checkbox" id="PauseInfoShowOverview" />
+                        <span>Show the synopsis</span>
+                    </label>
+                </div>
+
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="emby-checkbox-label">
+                        <input is="emby-checkbox" type="checkbox" id="PauseInfoShowRemaining" />
+                        <span>Show how much is left</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">
+                        "21 min left", read from the player. Hidden below one minute.
+                    </div>
+                </div>
+
+                <div class="verticalSection">
+                    <h3 class="sectionTitle">CSS hooks</h3>
+                    <p class="fieldDescription">
+                        These put information into the page for a stylesheet of your own to render. With
+                        no matching CSS they do nothing at all.
+                    </p>
+                </div>
+
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="emby-checkbox-label">
+                        <input is="emby-checkbox" type="checkbox" id="RowTagsEnabled" />
+                        <span>Name the home rows</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">
+                        <code>data-jfx-row="continue-watching"</code> on every home row, so CSS can address
+                        a row by name instead of by position.
+                    </div>
+                </div>
+
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="emby-checkbox-label">
+                        <input is="emby-checkbox" type="checkbox" id="ScrollVarEnabled" />
+                        <span>Scroll position as a CSS variable</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">
+                        <code>--jflix-scroll: 0…1</code> on <code>&lt;html&gt;</code>, for an app-bar scrim
+                        that ramps smoothly on TV browsers. Read it as
+                        <code>var(--jflix-scroll, 0)</code>.
+                    </div>
+                </div>
+
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="emby-checkbox-label">
+                        <input is="emby-checkbox" type="checkbox" id="CardMetaEnabled" />
+                        <span>Metadata on home cards</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">
+                        <code>data-jfx-overview</code>, <code>-genres</code> and <code>-runtime</code> on
+                        home cards, for a CSS hover panel built with <code>content: attr()</code>. Costs
+                        one extra API call per batch of cards, so it is off by default.
+                    </div>
+                </div>
+
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="emby-checkbox-label">
+                        <input is="emby-checkbox" type="checkbox" id="Debug" />
+                        <span>Console logging</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">
+                        Writes <code>[JellyFlix]</code> tracing to the browser console.
+                    </div>
+                </div>
+
+                <div>
+                    <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                        <span>Save</span>
+                    </button>
+                </div>
+
+            </form>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        (function () {
+            var pluginId = 'b1f0a6e2-9c3d-4a7f-8e15-2d6c4b9a7f03';
+            var checkboxes = [
+                'Enabled', 'PauseInfoEnabled', 'PauseInfoDim', 'PauseInfoShowLogo',
+                'PauseInfoShowOverview', 'PauseInfoShowRemaining', 'RowTagsEnabled',
+                'ScrollVarEnabled', 'CardMetaEnabled', 'Debug'
+            ];
+
+            function view() {
+                return document.querySelector('#PauseInfoCardConfigPage');
+            }
+
+            document.querySelector('#PauseInfoCardConfigPage').addEventListener('pageshow', function () {
+                Dashboard.showLoadingMsg();
+                ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                    var page = view();
+                    checkboxes.forEach(function (name) {
+                        page.querySelector('#' + name).checked = !!config[name];
+                    });
+                    page.querySelector('#PauseInfoDelayMs').value = config.PauseInfoDelayMs;
+                    Dashboard.hideLoadingMsg();
+                });
+            });
+
+            document.querySelector('#PauseInfoCardConfigForm').addEventListener('submit', function (e) {
+                e.preventDefault();
+                Dashboard.showLoadingMsg();
+                ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                    var page = view();
+                    checkboxes.forEach(function (name) {
+                        config[name] = page.querySelector('#' + name).checked;
+                    });
+                    config.PauseInfoDelayMs = parseInt(page.querySelector('#PauseInfoDelayMs').value, 10) || 0;
+                    ApiClient.updatePluginConfiguration(pluginId, config).then(function (result) {
+                        Dashboard.processPluginConfigurationUpdateResult(result);
+                    });
+                });
+                return false;
+            });
+        })();
+    </script>
+</div>
+</body>
+</html>

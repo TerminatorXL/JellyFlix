@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Jellyfin.Plugin.EpisodePicker</RootNamespace>
+    <AssemblyVersion>$(PluginVersion)</AssemblyVersion>
+    <FileVersion>$(PluginVersion)</FileVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(PluginVersion)' == ''">
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Matches the server this targets: Jellyfin 12.1, targetAbi 12.0.0.0. -->
+    <PackageReference Include="Jellyfin.Controller" Version="12.1.0" />
+    <!-- IStartupFilter, IApplicationBuilder, ApiController — the host already carries these, so they
+         must NOT be copied into the plugin zip; a FrameworkReference compiles against them without
+         shipping them. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The add-on bundle is embedded, so the plugin is one self-contained DLL. Build it first
+         with `npm run build:bundles`; the csproj deliberately does not shell out to node. -->
+    <EmbeddedResource Include="..\..\dist\bundles\episode-picker.js" LogicalName="Jellyfin.Plugin.EpisodePicker.addon.js" />
+    <EmbeddedResource Include="Configuration\configPage.html" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,11 @@
+{
+  "guid": "c7d4e9a1-3f62-4b85-9e07-5a1d8c2b6f34",
+  "name": "Episode Picker",
+  "assembly": "Jellyfin.Plugin.EpisodePicker",
+  "slug": "episode-picker",
+  "category": "General",
+  "owner": "TerminatorXL",
+  "targetAbi": "12.0.0.0",
+  "overview": "Netflix-style episode and season picker inside the player",
+  "description": "Adds a button to the player while a series is playing. It opens a drawer with the episodes of the current season — thumbnails, how far through each one you are, the one you are watching marked — and a season selector. Picking an episode starts it."
+}
