@@ -1,0 +1,1467 @@
+/* ============================================================================
+ * JellyFlix — 80-player.css
+ * §3.16 Player OSD · §3.17 Up-next and skip-segment · plus the player's other
+ * floating surfaces (volume/brightness OSD, player stats, subtitle-offset
+ * widget), the audio now-playing bar and the remote-control page.
+ *
+ * WHAT THIS FILE MAY AND MAY NOT TOUCH
+ * ------------------------------------
+ * §3.16 forbids restyling `.emby-button`, `.paper-icon-button-light` and
+ * `.material-icons` GLOBALLY, because the OSD reuses them raw. Every button
+ * rule below is therefore scoped to a player container — `.videoOsdBottom`,
+ * `.skinHeader.osdHeader`, `.videoOsd-appBar`, `.upNextDialog`,
+ * `.skip-button`, `.nowPlayingBar`, `#nowPlayingPage`, `.playerStats` — and
+ * not one selector in this file starts with a bare `.emby-button`,
+ * `.paper-icon-button-light` or `.material-icons`.
+ *
+ * AUTO-HIDE IS JS, AND IT IS LOAD-BEARING (§7.2 "OSD auto-hides after 3 s")
+ * ------------------------------------------------------------------------
+ * `video/index.js:322-327` adds `.hide` to `.videoOsdBottom` / `.skinHeader`
+ * on the FIRST `transitionend` whose `e.target` is that element. So:
+ *   - `opacity` is the ONLY property this file transitions on those two
+ *     elements. A second transitioning property on the same element would fire
+ *     a second `transitionend` and could hide the OSD early or late.
+ *   - the transition is never removed or set to `none`: without a transition
+ *     `transitionend` never fires and `.hide` is never added.
+ *   - nothing here touches the 3000 ms timer, `.mouseIdle`, `.hide`,
+ *     `.videoOsdBottom-hidden` or `.osdHeader-hidden` semantics.
+ * `--jflix-dur-osd` (3000 ms) is documentation of the JS timer; CSS cannot set
+ * it. What CSS owns is the 200 ms fade, which is what §3.16 specifies.
+ *
+ * THE FOUNDATION HAND-OFF (10-global.css §8), RE-CHECKED HERE
+ * ----------------------------------------------------------
+ * 10-global.css made three deliberate global carve-outs and asked the player
+ * module to re-verify them on `#videoOsdPage`. Verdict, measured live:
+ *   1. `.paper-icon-button-light:hover/:active` repainted to
+ *      --jflix-overlay-hover / -press instead of the bridge's accent-red wash.
+ *      This is EXACTLY §3.16's "hover -> icon #FFF + --jflix-overlay-hover
+ *      circle". KEPT, nothing to fix. (Section F re-states the colour at
+ *      OSD specificity only so the 48px circle and the named transition live
+ *      in one place.)
+ *   2. `.emby-button.show-focus:focus{background:--jflix-surface-3}` (TV).
+ *      Correct for the OSD's own buttons, WRONG for the two light buttons this
+ *      file owns — `.btnStartNow` and `.skip-button` — which would go grey on
+ *      TV focus. Both are re-asserted at higher specificity in sections J/K.
+ *      Fixed INSIDE this file; no global change needed.
+ *   3. The removal of the radius/transition rules from the bare classes. The
+ *      OSD wants a circle (stock already ships `border-radius:50%`) and a named
+ *      transition, both of which are set here, scoped. Nothing to fix.
+ * => No change to 10-global.css is required for the player. §7.2's
+ *    "`.paper-icon-button-light`/`.material-icons`/`.emby-button` were not
+ *    restyled globally" is satisfied by this file.
+ *
+ * FILE ORDER. 60-forms-dialogs.css owns the GENERIC `.mdl-slider*` (settings
+ * sliders, the volume slider) and `.actionSheet`. This file sorts later, so the
+ * scrubber rules below out-specify it without editing it. Where a player rule
+ * would otherwise tie, the selector is deliberately one step more specific and
+ * the comment says which rule it is beating.
+ *
+ * NOT IN THIS FILE, ON PURPOSE:
+ *   - `.videoPlayerContainer` / `video.htmlvideoplayer` get no `z-index` and no
+ *     `transform`. Either one would put the video above the OSD, which wins
+ *     only by DOM order (player DOM map, "z-index stack during playback").
+ *   - `.scrollSlider`, `.hide`, inline trickplay geometry, inline slider
+ *     widths, `#syncPlayIcon`'s class attribute: all JS-owned.
+ *   - subtitle appearance (`.videoSubtitlesInner`, `::cue`, the libass canvas):
+ *     inline JS / `!important` head CSS / a canvas. Unstylable by contract.
+ * ========================================================================== */
+
+/* ----------------------------------------------------------------------------
+ * A. Player-local literals
+ *
+ * Every surface in this file floats over VIDEO, never over the page. The page
+ * can be light (`html[data-theme="light"]`); the video never is. So the two
+ * light-on-dark pairs §3.16/§3.17 ask for must NOT follow the light theme:
+ *   - §3.17 gives the skip pill `background: rgba(255,255,255,.9)` (a literal,
+ *     which cannot invert) and `color: var(--jflix-text-on-light)` (which
+ *     DOES invert to #FFFFFF on light, §2.17). Shipping both verbatim renders
+ *     white-on-white on the light theme — the same trap 00-tokens.css
+ *     documents for --jflix-btn-primary-bg.
+ *   - §3.17 gives `.upNextContainer` a literal rgba(35,35,35,.92) and puts the
+ *     white Primary inside it; --jflix-btn-primary-bg inverts to #0B0B0B on
+ *     light and would be a near-black button on a near-black card.
+ * Both halves of each pair are therefore pinned here, theme-independently.
+ * SPEC: §2.17 should state that player surfaces are theme-invariant, or §3.16
+ * /§3.17 should name theme-invariant tokens. Until then these three names are
+ * the single edit point for the player's "over video" palette.
+ * -------------------------------------------------------------------------- */
+
+:root {
+    --jflix-osd-paper: #FFFFFF;             /* light pill / Primary fill       */
+    --jflix-osd-paper-dim: rgba(255, 255, 255, .90);
+    --jflix-osd-ink: #0B0B0B;               /* label on the two above          */
+}
+
+/* ----------------------------------------------------------------------------
+ * B. Bottom shelf (§3.16 "Bottom shelf")
+ *
+ * Stock (`videoosd.scss:15-35`): a flat
+ * `linear-gradient(0deg, rgba(16,16,16,.75), rgba(16,16,16,0))` over
+ * `padding: 7.5em 0 1.75em` — measured 1920x223 at 1920. §3.16 replaces the
+ * gradient with --jflix-scrim-osd-b, makes the shelf 180px and sets
+ * padding-bottom 24px.
+ *
+ * `box-sizing: border-box` is REQUIRED, not tidiness: the app does not set it
+ * on this element, so a content-box `min-height:180px` plus 96px of padding
+ * measured a 276px shelf on the first pass — a third taller than §3.16's
+ * number and a visibly heavier scrim. With border-box the 180 is the whole
+ * shelf: 56 (scrim run-up) + 100 (content box, measured content 95.2) + 24
+ * (foot). `min-height` rather than `height` so a taller content column (an
+ * un-hidden `.osdMediaStatus`, a wrapped button row on a narrow window) grows
+ * the shelf instead of overflowing it. `align-items:flex-end` keeps the
+ * controls on the foot line when it does not.
+ *
+ * `pointer-events:none` here and `all` on `.osdControls` is stock and STAYS:
+ * the shelf is click-through by design so clicks over the video pause it
+ * (player DOM map, hard blocker 6).
+ *
+ * `env(safe-area-inset-bottom)` is preserved through max(), exactly as stock's
+ * `conditional-max` mixin writes it.
+ * (0,1,0) — ties stock, wins on source order.
+ * -------------------------------------------------------------------------- */
+
+.videoOsdBottom {
+    box-sizing: border-box;
+    min-height: 180px;
+    padding-top: 56px;
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
+    background: var(--jflix-scrim-osd-b);
+    color: var(--jflix-text-primary);
+    align-items: flex-end;
+}
+
+/* The fade. 200 ms --jflix-ease-exit per §3.16, replacing stock's
+   `opacity .3s ease-out`. OPACITY ONLY — see the file header. */
+.videoOsdBottom {
+    transition-property: opacity;
+    transition-duration: var(--jflix-dur-base);
+    transition-timing-function: var(--jflix-ease-exit);
+}
+
+/* Content inset. --jflix-gutter is the one alignment line (§1.3); env() inside
+   max() keeps a notched phone's inset winning, the same way 10-global.css §7
+   writes `.padded-left`. Stock is `padding: 0 .8em` (0,1,0), so only the
+   inline sides are overridden and the 0 block padding stands. */
+.osdControls {
+    padding-left: max(var(--jflix-gutter), env(safe-area-inset-left));
+    padding-right: max(var(--jflix-gutter), env(safe-area-inset-right));
+}
+
+/* `.osdTextContainer{padding-left:.5em}` (videoosd.scss:176) puts every text
+   row 7.44px right of the gutter line the scrubber and the buttons sit on.
+   (0,2,0) beats it. */
+.osdControls .osdTextContainer {
+    padding-left: 0;
+}
+
+/* Same for the codec/resolution row, which stock pads with `!important`
+   (videoosd.scss:173). §0.2 rule 3 allows !important where stock used it on
+   the same property. */
+.osdControls .osdSecondaryMediaInfo {
+    padding-left: 0 !important;
+    font: var(--jflix-type-body-sm);
+    color: var(--jflix-text-secondary);
+}
+
+/* `h3.osdTitle` is ALWAYS EMPTY in 12.1 — the title lives in the top bar and
+   CSS cannot move it there (player DOM map, hard blocker 2). §3.16:
+   "display:none it". Without this it is still a 0x0 h3 that 10-global.css's
+   bare `h3` rule sizes at 17px, and its `margin: 0 1em 0 0` survives. */
+.osdTitle {
+    display: none;
+}
+
+/* With the title gone, `.osdMainTextContainer`'s 0.7em bottom margin is 10px of
+   dead air above the scrubber on every frame. Collapsed; the one child that
+   can still appear ("Pobieranie danych") carries its own spacing.
+   `:not(.hide)` per house rule 4 — never select a hidden element. */
+.osdControls .osdMainTextContainer {
+    margin-bottom: 0;
+}
+
+.osdMediaStatus:not(.hide) {
+    margin-bottom: var(--jflix-space-2);
+    font: var(--jflix-type-body-sm);
+    color: var(--jflix-text-secondary);
+}
+
+/* ----------------------------------------------------------------------------
+ * C. Scrubber (§3.16 "Scrubber")
+ *
+ * ANCHOR. The scrubber and the volume slider are both `.sliderContainer`s
+ * inside `.osdControls`. Only the scrubber carries the `.flex-grow` UTILITY
+ * class (video/index.html:23); the volume wrapper is
+ * `.sliderContainer.osdVolumeSliderContainer` and gets its flex-grow from CSS,
+ * not a class. `.osdControls .sliderContainer.flex-grow` is therefore an exact,
+ * stable, hash-free anchor for "the seek bar" — verified live.
+ *
+ * SIZE IS A CUSTOM PROPERTY, NOT A RULE PER STATE. The track
+ * (`.mdl-slider-background-flex`) and the knob (a pseudo-element of the INPUT)
+ * are different elements with no ancestor relationship to each other, so a
+ * single `:hover` rule cannot set both. Two custom properties declared on their
+ * common ancestor solve it in one place: pseudo-elements inherit custom
+ * properties from their originating element, so `::-webkit-slider-thumb` reads
+ * --jflix-osd-knob without the input needing its own hover rule.
+ *
+ * WHY THE IDLE KNOB IS ONLY HIDDEN ON POINTER DEVICES. §3.16 says "0 px idle ->
+ * 14 px on hover" and notes `.mdl-slider-hoverthumb` is absent on mobile. Taken
+ * literally that leaves a touch user with NO knob at all and no way to reveal
+ * one — the baseline ships a visible knob there. The 0px idle is therefore
+ * gated on `(hover:hover) and (pointer:fine)` (house rule 10: gate interaction
+ * on capability), and touch/TV keep a permanent knob.
+ *
+ * GEOMETRY NOTE (why the knob stops at 16px). `.mdl-slider-background-flex-
+ * container` is padded `0 .54em` = half of stock's 1.08em knob, and
+ * `.sliderBubbleTrack` / `.sliderMarkerContainer` use the same margin; JS clamps
+ * the bubble against `.sliderBubbleTrack`'s measured rect. 1.08em resolves to
+ * 16.07px at the OSD's 14.88px font, so a 16px active knob keeps the knob
+ * centre, the painted fill, the chapter ticks and the bubble on the same axis.
+ * The 14px hover knob is 1px narrower than that assumption — invisible, and the
+ * alternative (re-padding four elements) fights JS-measured geometry.
+ * -------------------------------------------------------------------------- */
+
+.osdControls .sliderContainer.flex-grow {
+    --jflix-osd-track: 4px;
+    --jflix-osd-knob: 14px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .osdControls .sliderContainer.flex-grow {
+        --jflix-osd-knob: 0px;
+    }
+}
+
+/* Hover and keyboard focus reach the same end state (§3.16, §4.1's "focus
+   reaches the same state instantly"). Separate rules: `:focus-within` is
+   unsupported on the oldest TV engines and one unknown pseudo-class would kill
+   a whole selector list (house rule 2's reasoning). */
+.osdControls .sliderContainer.flex-grow:hover {
+    --jflix-osd-track: 8px;
+    --jflix-osd-knob: 14px;
+}
+
+.osdControls .sliderContainer.flex-grow:focus-within {
+    --jflix-osd-track: 8px;
+    --jflix-osd-knob: 14px;
+}
+
+.osdControls .sliderContainer.flex-grow:active {
+    --jflix-osd-track: 8px;
+    --jflix-osd-knob: 16px;
+}
+
+/* §3.16 / §5.2: "hit area 20 px tall regardless of visual height". The hit area
+   IS the `<input type=range>` — it sits at z-index 1 above the painted bars,
+   which are `pointer-events` inert decoration. A transparent `::before` on the
+   container (as §3.16 suggests) could not receive the pointer without covering
+   the input and swallowing seeks, so the guarantee is written on the element
+   that actually takes the click. Stock's `height:150%` already measures 27.9px
+   here; `min-height` makes the 20px a contract rather than a coincidence. */
+.osdControls .sliderContainer.flex-grow {
+    min-height: 20px;
+}
+
+.osdPositionSlider {
+    min-height: 20px;
+}
+
+/* --- Track ---------------------------------------------------------------
+ * OPAQUE on purpose (§3.16, §7.1's contrast gate): the OSD floats over video,
+ * and a translucent track lets a bright frame through and destroys the red
+ * fill's contrast. --jflix-progress-track (#141414) is artwork-independent;
+ * --jflix-accent on it measures 3.88:1, the value §2.3 was tuned for.
+ * `margin-top` must track the height or the bar drifts off the slider's axis:
+ * stock pairs `height:.2em` with `margin-top:-.1em`.
+ * (0,4,0) — beats 60-forms-dialogs.css's generic `.mdl-slider-background-flex`
+ * (0,1,0) and stock's (0,1,0). */
+.osdControls .sliderContainer.flex-grow .mdl-slider-background-flex {
+    height: var(--jflix-osd-track);
+    margin-top: calc(var(--jflix-osd-track) / -2);
+    background: var(--jflix-progress-track);
+    border-radius: var(--jflix-radius-xs);
+    transition-property: height, margin-top;
+    transition-duration: var(--jflix-dur-base);
+    transition-timing-function: var(--jflix-ease-enter);
+}
+
+/* Played portion — one of §2.3's five accent slots ("watch-progress fill").
+   `width` is written inline by JS every frame; colour only. */
+.osdControls .sliderContainer.flex-grow .mdl-slider-background-lower {
+    background-color: var(--jflix-accent);
+}
+
+/* Buffered portion, §3.16's rgba(255,255,255,.45). Over the opaque track this
+   composites to rgb(126,126,126): clearly ahead of the track, clearly behind
+   the accent. `left`/`width` are inline JS. */
+.osdControls .sliderContainer.flex-grow .mdl-slider-background-upper {
+    background: rgba(255, 255, 255, .45);
+}
+
+/* --- Knob ---------------------------------------------------------------
+ * ::-webkit-slider-thumb and ::-moz-range-thumb are ALWAYS separate rules —
+ * one unknown pseudo-element kills the entire selector list.
+ * Base is (0,1,1), tying 60-forms-dialogs.css's `.mdl-slider::-webkit-slider-
+ * thumb`; this file is later, so it wins. */
+.osdPositionSlider::-webkit-slider-thumb {
+    width: var(--jflix-osd-knob);
+    height: var(--jflix-osd-knob);
+    background: var(--jflix-osd-paper);
+    transform: none;
+    transition-property: width, height;
+    transition-duration: var(--jflix-dur-base);
+    transition-timing-function: var(--jflix-ease-enter);
+}
+
+.osdPositionSlider::-moz-range-thumb {
+    width: var(--jflix-osd-knob);
+    height: var(--jflix-osd-knob);
+    background: var(--jflix-osd-paper);
+    transform: none;
+    transition-property: width, height;
+    transition-duration: var(--jflix-dur-base);
+    transition-timing-function: var(--jflix-ease-enter);
+}
+
+/* Stock (`emby-slider.scss:61,81`) and 60-forms-dialogs.css both scale the knob
+   on hover / TV focus. JellyFlix changes the knob's SIZE instead, so the scale
+   has to be cancelled or the two compound. (0,3,1) beats both (0,2,1) rules. */
+.osdPositionSlider.mdl-slider-hoverthumb:hover::-webkit-slider-thumb,
+.osdPositionSlider.show-focus:focus::-webkit-slider-thumb {
+    transform: none;
+}
+
+.osdPositionSlider.mdl-slider-hoverthumb:hover::-moz-range-thumb,
+.osdPositionSlider.show-focus:focus::-moz-range-thumb {
+    transform: none;
+}
+
+/* Keyboard focus. The knob is already 14px (the `:focus-within` rule above), so
+   this only carries the ring and cancels the inherited scale. Kept in its own
+   rule per house rule 2's reasoning — an engine without `:focus-visible` drops
+   this and keeps everything else. (0,2,1) ties 60-forms-dialogs.css and wins on
+   order. */
+.osdPositionSlider:focus-visible::-webkit-slider-thumb {
+    transform: none;
+    box-shadow: var(--jflix-focus-ring);
+}
+
+.osdPositionSlider:focus-visible::-moz-range-thumb {
+    transform: none;
+    box-shadow: var(--jflix-focus-ring);
+}
+
+/* --- Chapter ticks --------------------------------------------------------
+ * Colours (watched = --jflix-accent, unwatched = rgba(255,255,255,.3)) and the
+ * 2x12px geometry already come from 60-forms-dialogs.css + stock and match
+ * §3.16 exactly — not repeated here.
+ * What the OPAQUE track breaks is paint order: `.sliderMarkerContainer` comes
+ * BEFORE `.mdl-slider-background-flex-container` in the DOM, so with a
+ * see-through stock track the ticks showed through and with ours they would be
+ * cut to the 4px sticking out above and below. `z-index:1` lifts the tick rail
+ * over the bars; the input above it is transparent, so nothing is swallowed.
+ * `left` stays inline (JS re-measures on `updateMarkers()`). */
+.osdControls .sliderMarkerContainer {
+    z-index: 1;
+}
+
+/* --- Scrub bubble and trickplay/chapter preview ---------------------------
+ * `.sliderBubble` itself (surface-3, --jflix-radius-md, --jflix-elev-2) is
+ * already correct from 60-forms-dialogs.css and matches §3.16 — not repeated.
+ *
+ * `h1.sliderBubbleText` is NOT: 10-global.css's bare `h1{font:var(--jflix-type-
+ * display-ish h1)}` is (0,0,1) but sets `font` directly on the element, so it
+ * beats the `.sliderBubble{font:…}` the bubble inherits — a scrub tooltip
+ * rendered at 40px/700. (0,1,0) fixes it. This is a GENERIC slider element
+ * (settings sliders show the same bubble); the fix is written here because the
+ * player is where it is visible, and reported as a cross-module note. */
+.sliderBubbleText {
+    font: var(--jflix-type-body-sm);
+    color: var(--jflix-text-primary);
+    padding: var(--jflix-space-1) var(--jflix-space-2);
+}
+
+/* The thumbnail frame. Stock `box-shadow: 0 0 1.9vh #000` is a viewport-scaled
+   blur on a floating layer; §2.11's elevation ladder replaces it. Radius +
+   overflow clip the trickplay sprite to the frame — DECORATION ONLY: the
+   wrapper's width/height/background-position are inline from the server
+   trickplay manifest and are never touched (player DOM map, hard blocker 3). */
+.chapterThumbContainer {
+    border-radius: var(--jflix-radius-sm);
+    box-shadow: var(--jflix-elev-2);
+    overflow: hidden;
+}
+
+.chapterThumbWrapper {
+    border-radius: var(--jflix-radius-sm);
+}
+
+/* Caption strip over the frame. §1.2's law is art -> scrim -> text, so the
+   stock double `text-shadow: 0 0 25px #000, 0 0 6px #000` is replaced by a real
+   scrim plus one decorative shadow (§2.11: shadows never count toward WCAG). */
+.chapterThumbTextContainer {
+    background: var(--jflix-scrim-tile-b);
+    padding: var(--jflix-space-4) var(--jflix-space-2) var(--jflix-space-2);
+}
+
+/* One rule covers both nodes: the chapter name is a `div.chapterThumbText
+   .chapterThumbText-dim` and the timestamp is an `h2.chapterThumbText`, which
+   10-global.css's bare `h2` would otherwise render at 24px/700. (0,1,0). */
+.chapterThumbText {
+    font: var(--jflix-type-body-sm);
+    color: var(--jflix-text-primary);
+    text-shadow: var(--jflix-text-shadow);
+    padding: 0;
+}
+
+.chapterThumbText-dim {
+    color: var(--jflix-text-secondary);
+    opacity: 1;
+}
+
+/* ----------------------------------------------------------------------------
+ * D. Time texts (§3.16 "Transport")
+ *
+ * --jflix-font-num + tabular-nums so the digits do not jitter frame to frame.
+ * §3.16 asks for "a fixed width"; `min-width` ships instead, because a fixed
+ * width sized for "0:04" clips "1:23:45" on a feature film and a width sized
+ * for the long form wastes 40px on every short one. With tabular figures the
+ * only jitter left is the 9:59 -> 10:00 step, which min-width absorbs.
+ * The inline `margin` on both elements (index.html:22,27) is left alone.
+ * -------------------------------------------------------------------------- */
+
+.startTimeText,
+.endTimeText {
+    font: var(--jflix-type-body);
+    font-family: var(--jflix-font-num);
+    font-variant-numeric: tabular-nums;
+    color: var(--jflix-text-primary);
+    text-shadow: var(--jflix-text-shadow);
+    min-width: 48px;
+}
+
+.startTimeText {
+    justify-content: flex-start;
+}
+
+.endTimeText {
+    justify-content: flex-end;
+}
+
+/* `.osdTimeText` carries `margin-left:1em; margin-right:auto` and IS the flex
+   spacer that pushes the right-hand cluster to the edge (§3.16, §7.2). NEITHER
+   MARGIN IS TOUCHED — only the text inside it is typed. */
+.osdTimeText {
+    font: var(--jflix-type-body);
+    color: var(--jflix-text-secondary);
+    text-shadow: var(--jflix-text-shadow);
+}
+
+.endsAtText {
+    font-variant-numeric: tabular-nums;
+}
+
+/* ----------------------------------------------------------------------------
+ * E. Button row geometry (§3.16 "Transport")
+ *
+ * The row is `.videoOsdBottom .buttons` (flex, wrap). Its first child is an
+ * UNCLASSED `div[dir="ltr"]` holding the transport cluster — the DOM map's
+ * recommended child selector. That div is not a flex container in stock, so the
+ * 24px gap §3.16 asks for is created by making it one; the outer row gets the
+ * same gap for the space between the spacer and the right-hand cluster.
+ * `flex-wrap` and the RTL `row-reverse` are stock and untouched.
+ * -------------------------------------------------------------------------- */
+
+.videoOsdBottom .buttons {
+    gap: var(--jflix-space-6);
+    padding-top: var(--jflix-space-2);
+}
+
+.videoOsdBottom .buttons > div[dir="ltr"] {
+    display: flex;
+    align-items: center;
+    gap: var(--jflix-space-6);
+}
+
+/* Stock's `margin: 0 .29em` on every icon button double-counts against the gap
+   and puts a 4.3px sliver between the leading button and the gutter line.
+   (0,2,0) beats `.paper-icon-button-light` (0,1,0); the 33.75em media rule that
+   also zeroes this margin is stock and harmless. */
+.videoOsdBottom .paper-icon-button-light {
+    margin: 0;
+}
+
+/* ----------------------------------------------------------------------------
+ * F. OSD icon buttons (§3.16 "Transport" + "States")
+ *
+ * 48x48 with a 28px glyph. Stock sizes these from `padding:.556em` + a 1.67em
+ * glyph, i.e. they re-scale with the root font (41.5px desktop, 55px TV);
+ * pinning width/height gives one target everywhere and satisfies §5.2.
+ *
+ * `overflow: visible` is REQUIRED, not cosmetic: stock ships
+ * `.paper-icon-button-light{overflow:hidden}` and would clip the focus ring and
+ * the selected dot to the circle (player DOM map, "containment" note 4).
+ *
+ * `transition: .2s` in emby-button.scss:118 is an unnamed shorthand — i.e.
+ * `transition-property: all`, which house rule 7 forbids and which would now
+ * animate the width/height above. Named here, scoped to the OSD.
+ * -------------------------------------------------------------------------- */
+
+.videoOsdBottom .paper-icon-button-light {
+    width: 48px;
+    height: 48px;
+    padding: 0;
+    overflow: visible;
+    border-radius: var(--jflix-radius-circle);
+    color: var(--jflix-text-primary);
+    transition-property: background-color, color, transform;
+    transition-duration: var(--jflix-dur-fast);
+    transition-timing-function: var(--jflix-ease-exit);
+}
+
+/* (0,3,0) — above stock's `.paper-icon-button-light > .material-icons`
+   (0,2,0). `.xlargePaperIconButton` / `.largePaperIconButton` carry no stock
+   rule at all, so the glyph size is set on the shared child instead and the
+   two size hints stay free for later use. */
+.videoOsdBottom .paper-icon-button-light > .material-icons {
+    font-size: var(--jflix-icon-xl);
+}
+
+/* Play / pause is the primary control: 56x56, glyph 32 (§3.16). Written after
+   the generic rule so the (0,2,0) / (0,3,0) ties resolve in its favour. */
+.videoOsdBottom .btnPause {
+    width: 56px;
+    height: 56px;
+}
+
+.videoOsdBottom .btnPause > .material-icons {
+    font-size: 32px;
+}
+
+/* Hover. Same end state 10-global.css §8 already produces — restated at OSD
+   specificity so the circle, the colour and the named transition read as one
+   recipe, and so the OSD is correct even if §8's global carve-out is ever
+   narrowed. (0,3,0) ties §8's `.paper-icon-button-light:hover:not(:disabled)`
+   and wins on order. Gated exactly as _theme.scss:143 gates it, so touch
+   behaviour is unchanged. */
+@media (hover: hover) and (pointer: fine) {
+    .videoOsdBottom .paper-icon-button-light:hover {
+        color: var(--jflix-text-primary);
+        background-color: var(--jflix-overlay-hover);
+    }
+}
+
+/* Press is instant, release animates (§2.13). scale(.92) per §3.16. */
+.videoOsdBottom .paper-icon-button-light:active {
+    background-color: var(--jflix-overlay-press);
+    transform: scale(.92);
+    transition-duration: var(--jflix-dur-instant);
+}
+
+/* §3.16's disabled opacity is .35; stock is .3 at (0,2,0). */
+.videoOsdBottom .paper-icon-button-light:disabled {
+    opacity: .35;
+}
+
+/* Selected. §3.16 asks for "icon --jflix-accent plus a 4px dot beneath".
+   `.btnUserRating` is the ONE OSD control with a real state hook: the rating
+   element swaps `.ratingbutton-icon-withrating` onto the glyph
+   (emby-ratingbutton.js:39). Stock paints it --jf-palette-error-light, which
+   the bridge points at --jflix-danger-text — i.e. "favourite" would read as
+   "error"; 40-details.css makes the same correction for the detail page.
+   `.btnSubtitles` / `.btnAudio` have NO on/off class in 12.1 (grepped
+   video/index.js) — the selected state for those is shown in the action sheet
+   instead, and is not fakeable in CSS. */
+.videoOsdBottom .ratingbutton-icon-withrating {
+    color: var(--jflix-accent);
+}
+
+.videoOsdBottom .btnUserRating .ratingbutton-icon-withrating::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: -8px;
+    width: 4px;
+    height: 4px;
+    margin-left: -2px;
+    border-radius: var(--jflix-radius-circle);
+    background: var(--jflix-accent);
+}
+
+/* The glyph is `position:relative` in stock, which the dot above anchors to.
+   Stated so nobody "cleans up" the relative positioning. */
+.videoOsdBottom .btnUserRating .material-icons {
+    position: relative;
+}
+
+/* ----------------------------------------------------------------------------
+ * G. Volume group
+ * Left on 60-forms-dialogs.css's generic slider (white fill, 12px knob) — a
+ * volume level is not one of §2.3's five accent slots. The ONE change is the
+ * track: like the scrubber it floats over video, so the translucent generic
+ * track is swapped for the opaque one. (0,2,0).
+ * -------------------------------------------------------------------------- */
+
+.osdVolumeSliderContainer .mdl-slider-background-flex {
+    background: var(--jflix-progress-track);
+}
+
+.videoOsdBottom .volumeButtons {
+    margin: 0;
+    gap: var(--jflix-space-2);
+}
+
+/* ----------------------------------------------------------------------------
+ * H. Top bar (§3.16 "Top bar")
+ *
+ * TWO IMPLEMENTATIONS, same classes. Legacy and TV render the real
+ * `.skinHeader.osdHeader`; Modern renders a separate MUI `Box` that carries the
+ * same `skinHeader osdHeader` classes plus a hashed emotion class. Everything
+ * that can be shared is written on `.skinHeader.osdHeader`; only the toolbar
+ * internals differ.
+ *
+ * `.skinHeader-withBackground` is (0,1,0) and 25-shell-legacy.css paints it
+ * --jflix-surface-0 with `background-image:none` — which would put an opaque
+ * black band across the top of the video. `.skinHeader.osdHeader` is (0,2,0),
+ * ties stock's `.skinHeader-withBackground.osdHeader` and beats the shell's
+ * (0,1,0), so both halves (colour AND image) are re-asserted here.
+ *
+ * MUI <Fade> writes `opacity` INLINE on the Modern header, so this file must
+ * not animate opacity there — it only names the property so the legacy/TV
+ * `.osdHeader-hidden` fade keeps firing `transitionend` (see the file header).
+ * -------------------------------------------------------------------------- */
+
+.skinHeader.osdHeader {
+    box-sizing: border-box;
+    height: 120px;
+    background-color: transparent;
+    background-image: var(--jflix-scrim-top);
+    box-shadow: none;
+    color: var(--jflix-text-primary);
+    transition-property: opacity;
+    transition-duration: var(--jflix-dur-base);
+    transition-timing-function: var(--jflix-ease-exit);
+}
+
+/* --- Legacy / TV toolbar -------------------------------------------------
+ * 25-shell-legacy.css already gives `.skinHeader .headerTop` the gutter inset
+ * and zero block padding; only the OSD's taller row and its bigger buttons are
+ * added here. Stock caps the row at `max-height:3.5em` (52px) which a 48px
+ * button plus centring will not fit comfortably — (0,2,0) raises it. */
+.skinHeader.osdHeader .headerTop {
+    min-height: 56px;
+    max-height: 56px;
+    padding-left: max(var(--jflix-gutter), env(safe-area-inset-left));
+    padding-right: max(var(--jflix-gutter), env(safe-area-inset-right));
+}
+
+/* 48x48 / glyph 24 (§3.16). (0,4,0) beats 25-shell-legacy.css's
+   `.skinHeader .headerButton.paper-icon-button-light` (0,3,0), which sizes the
+   ordinary app bar at 40x40 with a 20px glyph. */
+.skinHeader.osdHeader .headerButton.paper-icon-button-light {
+    width: 48px;
+    height: 48px;
+    color: var(--jflix-text-primary);
+}
+
+.skinHeader.osdHeader .headerButton > .material-icons {
+    font-size: var(--jflix-icon-lg);
+}
+
+/* Title. §3.16: --jflix-type-row, 16px from the back button. (0,4,0) beats both
+   stock's `[dir="ltr"] .pageTitle` (0,2,0) and 25-shell-legacy.css's
+   `.skinHeader .pageTitle:not(.pageTitleWithLogo)` (0,3,0).
+   The shell's mobile (17px) and TV (28px) steps are (0,4,1) and deliberately
+   still win — both are the right size for those profiles and re-declaring them
+   here would duplicate the shell's measurements. */
+.skinHeader.osdHeader .pageTitle:not(.pageTitleWithLogo) {
+    font: var(--jflix-type-row);
+    letter-spacing: -0.006em;
+    color: var(--jflix-text-primary);
+    text-shadow: var(--jflix-text-shadow);
+    margin-left: var(--jflix-space-4);
+    margin-right: 0;
+}
+
+/* The TV clock. 25-shell-legacy.css already types `.skinHeader .currentTimeText`
+   for the app bar; over video it needs the shadow the rest of the bar carries. */
+.skinHeader.osdHeader .currentTimeText {
+    color: var(--jflix-text-secondary);
+    text-shadow: var(--jflix-text-shadow);
+}
+
+/* --- Modern toolbar ------------------------------------------------------
+ * `.videoOsd-appBar` is the stable class `AppToolbar` is given
+ * (routes/video/index.tsx:73). Its emotion siblings (`css-1tmqktv`, …) are
+ * never targeted. Stock gives it `padding: 0 1em`; MUI's `.MuiToolbar-gutters`
+ * is (0,1,0) too, so a (0,1,0) rule here ties both and wins on order. */
+.videoOsd-appBar {
+    padding-left: max(var(--jflix-gutter), env(safe-area-inset-left));
+    padding-right: max(var(--jflix-gutter), env(safe-area-inset-right));
+    min-height: 56px;
+}
+
+/* 48x48 / glyph 24. MUI renders these at `MuiIconButton-sizeLarge` = 46x46 with
+   a 22px glyph. (0,2,0) beats the emotion class (0,1,0). */
+.videoOsd-appBar .MuiIconButton-root {
+    width: 48px;
+    height: 48px;
+    padding: 12px;
+    color: var(--jflix-text-primary);
+}
+
+.videoOsd-appBar .MuiSvgIcon-root {
+    font-size: var(--jflix-icon-lg);
+}
+
+.videoOsd-appBar .MuiIconButton-root:hover {
+    background-color: var(--jflix-overlay-hover);
+}
+
+/* The Modern OSD title. `.MuiTypography-root` is stable; the `css-pl8nxc`
+   sibling is not. 10-global.css types `.MuiTypography-body1` at 14px (0,1,0);
+   this is (0,2,0). */
+.videoOsd-appBar .MuiTypography-root {
+    font: var(--jflix-type-row);
+    letter-spacing: -0.006em;
+    color: var(--jflix-text-primary);
+    text-shadow: var(--jflix-text-shadow);
+    margin-left: var(--jflix-space-4);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ----------------------------------------------------------------------------
+ * I. The ⚙ action sheet, player-specific bits
+ * `.actionSheet` is a `.dialog` variant and 60-forms-dialogs.css §11 already
+ * owns its surface, radius, rows, title and dividers. Only the two elements
+ * that appear exclusively on the player's menus are added here: the right-hand
+ * value column ("Auto", "1x", the current track) and the TV scroller.
+ * -------------------------------------------------------------------------- */
+
+.actionSheetItemAsideText {
+    font: var(--jflix-type-body-sm);
+    color: var(--jflix-text-tertiary);
+    margin-left: var(--jflix-space-4);
+}
+
+.actionSheetItemText {
+    font: var(--jflix-type-body);
+    color: var(--jflix-text-primary);
+}
+
+/* ----------------------------------------------------------------------------
+ * J. Up next (§3.17)
+ *
+ * Stock is a 30em translucent black slab pinned bottom-right with a 2em margin.
+ * §3.17 makes it a 420px card on --jflix-surface-3 at .92, --jflix-radius-md,
+ * --jflix-elev-4, padding 16, in the SAME corner as the skip pill — so both use
+ * `6vh` from the bottom and --jflix-gutter from the side.
+ *
+ * `.upNextContainer.upNextDialog` (0,2,0) is used for anything that has to beat
+ * stock's `[dir="ltr"] .upNextContainer` (0,2,0); `.upNextDialog` is added by
+ * `init()` and the element is `.hide`den before that, so nothing is styled in
+ * the wrong state. The dir variants are written out rather than collapsed,
+ * because a single un-scoped margin here would break RTL.
+ *
+ * THE COUNTDOWN RING IS DELIBERATELY OMITTED. §3.17 allows the growing
+ * `rgba(255,255,255,.14)` block "only if a duration is available in CSS". It is
+ * not: `.upNextDialog-countdownText` is a number JS rewrites every second and
+ * the dialog's lead time is a user setting. Faking a timing the theme cannot
+ * know would be worse than not showing one.
+ *
+ * The literal background is §3.17's own value and is theme-invariant by design
+ * (section A) — the card floats over video, never over the page.
+ * -------------------------------------------------------------------------- */
+
+.upNextContainer.upNextDialog {
+    width: auto;
+    max-width: 420px;
+    padding: var(--jflix-space-4);
+    background-color: rgba(35, 35, 35, .92);
+    color: var(--jflix-text-primary);
+    border-radius: var(--jflix-radius-md);
+    box-shadow: var(--jflix-elev-4);
+    transition-property: opacity;
+    transition-duration: var(--jflix-dur-dialog);
+    transition-timing-function: var(--jflix-ease-exit);
+}
+
+[dir="ltr"] .upNextContainer.upNextDialog {
+    margin: 0 var(--jflix-gutter) 6vh 0;
+}
+
+[dir="rtl"] .upNextContainer.upNextDialog {
+    margin: 0 0 6vh var(--jflix-gutter);
+}
+
+/* `h2.upNextDialog-nextVideoText` — without this, 10-global.css's bare `h2`
+   renders "Następny odcinek za 12" at 24px/700. §3.17: --jflix-type-label,
+   --jflix-text-tertiary. The inline `margin:.25em 0` (upnextdialog.js:22) is
+   left alone. */
+.upNextDialog-nextVideoText {
+    font: var(--jflix-type-label);
+    letter-spacing: 0.01em;
+    color: var(--jflix-text-tertiary);
+    text-transform: uppercase;
+}
+
+.upNextDialog-countdownText {
+    color: var(--jflix-text-secondary);
+}
+
+/* `h3.upNextDialog-title`. Stock's `width:25.5em` is wider than the 420px card
+   and would force a horizontal overflow; `auto` + the inherited ellipsis keeps
+   stock's single-line behaviour inside the new width. */
+.upNextDialog-title {
+    font: var(--jflix-type-h3);
+    color: var(--jflix-text-primary);
+    width: auto;
+    max-width: 100%;
+}
+
+.upNextDialog-mediainfo {
+    font: var(--jflix-type-body-sm);
+    color: var(--jflix-text-tertiary);
+    gap: var(--jflix-space-2);
+    flex-wrap: wrap;
+}
+
+/* Same reason as the title: stock's `width:29.75em` overflows a 420px card. */
+.upNextDialog-buttons {
+    width: auto;
+    gap: var(--jflix-space-2);
+}
+
+.upNextDialog-button {
+    margin: 0;
+    border-radius: var(--jflix-radius-sm);
+    font: var(--jflix-type-button);
+    letter-spacing: 0.005em;
+    min-height: var(--jflix-control-h);
+}
+
+/* `.btnHide` is the Ghost (§3.17). The markup is `.raised.raised-mini`, so
+   10-global.css's neutral recipe (0,3,0) has already given it the surface-4
+   fill; (0,3,0) here ties it and wins on order. */
+.upNextDialog .upNextDialog-button.btnHide {
+    background: transparent;
+    color: var(--jflix-text-secondary);
+}
+
+.upNextDialog .upNextDialog-button.btnHide:hover {
+    background: var(--jflix-overlay-hover);
+    color: var(--jflix-text-primary);
+}
+
+/* `.btnStartNow` is the white Primary. (0,3,0) beats stock's
+   `.upNextDialog-button{background:#404040}` (0,1,0) and ties 10-global.css's
+   `.raised:not(…):not(…)` (0,3,0) on order; the hover/focus/active variants are
+   (0,4,0), which is what §8's `.emby-button.show-focus:focus{background:
+   --jflix-surface-3}` (0,3,0) needs to be beaten by on TV — without the :focus
+   rule the auto-focused CTA of every TV up-next card would be grey, not white
+   (§7.2 "tv: … must show --jflix-focus-ring-tv" on a WHITE button). */
+.upNextDialog .upNextDialog-button.btnStartNow {
+    background: var(--jflix-osd-paper);
+    color: var(--jflix-osd-ink);
+}
+
+.upNextDialog .upNextDialog-button.btnStartNow:hover {
+    background: var(--jflix-osd-paper-dim);
+    color: var(--jflix-osd-ink);
+}
+
+.upNextDialog .upNextDialog-button.btnStartNow:focus {
+    background: var(--jflix-osd-paper);
+    color: var(--jflix-osd-ink);
+}
+
+.upNextDialog .upNextDialog-button.btnStartNow:active {
+    background: var(--jflix-osd-paper-dim);
+    transform: scale(.98);
+    transition-duration: var(--jflix-dur-instant);
+}
+
+/* ----------------------------------------------------------------------------
+ * K. Skip Intro / Outro (§3.17)
+ *
+ * Stock: `#303030` on `rgba(255,255,255,.87)` text, `bottom:8rem`,
+ * `margin-right:6rem`, `font-size:1.2em`, `border-radius:.2em`.
+ * §3.17 makes it a light pill in the same corner as the up-next card.
+ *
+ * THE ENTER ANIMATION AND THE HIDE LISTENER. `skipsegment.ts:120-125` adds
+ * `.hide` on the first `transitionend` after `.skip-button-hidden` goes on,
+ * with `{once:true}`. Adding `transform` to the transition is safe ONLY because
+ * both properties are given the same duration, so they finish together and the
+ * single listener fires once at the right moment. If the durations ever
+ * diverge, the pill will disappear early — do not split them.
+ * `.no-transition` (stock, global, unscoped) still suppresses both.
+ *
+ * The literal fill is theme-invariant by design — see section A.
+ * -------------------------------------------------------------------------- */
+
+.skip-button-container {
+    bottom: 6vh;
+}
+
+.skip-button {
+    padding: .6em 1.5em;
+    font: var(--jflix-type-button-lg);
+    background-color: var(--jflix-osd-paper-dim);
+    color: var(--jflix-osd-ink);
+    border-radius: var(--jflix-radius-sm);
+    box-shadow: var(--jflix-elev-2);
+    transform: translateY(0);
+    transition-property: opacity, transform, background-color;
+    transition-duration: var(--jflix-dur-base);
+    transition-timing-function: var(--jflix-ease-enter);
+}
+
+[dir="ltr"] .skip-button {
+    margin-left: auto;
+    margin-right: max(var(--jflix-gutter), env(safe-area-inset-right));
+}
+
+[dir="rtl"] .skip-button {
+    margin-right: auto;
+    margin-left: max(var(--jflix-gutter), env(safe-area-inset-left));
+}
+
+/* Enters with opacity 0 -> 1 and translateY(8px -> 0) (§3.17). Stock already
+   owns the opacity half through `.skip-button-hidden{opacity:0}`; (0,1,0) ties
+   it and adds the offset. */
+.skip-button-hidden {
+    transform: translateY(8px);
+}
+
+.skip-button:hover {
+    background-color: var(--jflix-osd-paper);
+}
+
+/* Beats 10-global.css §8's `.emby-button.show-focus:focus{background:
+   --jflix-surface-3}` (0,3,0) on TV — the pill must stay light under a D-pad
+   focus ring. */
+.skip-button:focus,
+.skip-button.show-focus:focus {
+    background-color: var(--jflix-osd-paper);
+    color: var(--jflix-osd-ink);
+}
+
+.skip-button:active {
+    transform: scale(.98);
+    transition-duration: var(--jflix-dur-instant);
+}
+
+/* Netflix's pill is text-only; the trailing `skip_next` glyph is decoration
+   next to a label that already says "Pomiń". Kept, but sized down so the pill
+   reads as a label rather than a toolbar button. */
+.skip-button > .material-icons {
+    font-size: var(--jflix-icon-md);
+}
+
+/* ----------------------------------------------------------------------------
+ * L. The player's other floating panels
+ * Volume/brightness OSD (`.iconOsd`), stats overlay (`.playerStats`) and the
+ * subtitle-offset widget (`.subtitleSync*`). All three hard-code
+ * `rgba(28,28,28,.8)` / `rgba(0,0,0,.8)` and a `.3em` radius, and `.iconOsd`
+ * ships an UNCONDITIONAL `backdrop-filter: blur(5px)` (iconosd.scss:33) — house
+ * rule 9 and §2.11 require that to be gated, so it is switched off here and
+ * re-enabled only behind the gate.
+ * These are floating layers, so §2.11's elevation at rest is allowed.
+ * -------------------------------------------------------------------------- */
+
+.iconOsd {
+    background: rgba(35, 35, 35, .92);
+    color: var(--jflix-text-primary);
+    border-radius: var(--jflix-radius-md);
+    box-shadow: var(--jflix-elev-2);
+    backdrop-filter: none;
+    transition-property: opacity;
+    transition-duration: var(--jflix-dur-base);
+    transition-timing-function: var(--jflix-ease-exit);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    html:not(.layout-tv) .iconOsd {
+        backdrop-filter: var(--jflix-blur);
+    }
+}
+
+/* `#00a4dc` survivor (LIST 1, owned by this module). A volume or brightness
+   LEVEL is not one of §2.3's five accent slots, so it is painted white — the
+   same decision 10-global.css §8 made for the spinner. Brightness keeps a
+   distinct hue because stock uses the colour itself as the channel that tells
+   the two OSDs apart. */
+.iconOsdProgressOuter {
+    background: var(--jflix-progress-track);
+    border-radius: var(--jflix-radius-xs);
+}
+
+.iconOsdProgressInner {
+    background: var(--jflix-text-primary);
+    border-radius: var(--jflix-radius-xs);
+}
+
+.brightnessOsdProgressInner {
+    background: var(--jflix-warning);
+}
+
+.playerStats {
+    background: rgba(35, 35, 35, .92);
+    color: var(--jflix-text-primary);
+    border-radius: var(--jflix-radius-md);
+    box-shadow: var(--jflix-elev-2);
+}
+
+.playerStats-stat {
+    font: var(--jflix-type-body-sm);
+}
+
+.playerStats-stat-label {
+    color: var(--jflix-text-secondary);
+}
+
+.playerStats-stat-value {
+    color: var(--jflix-text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.playerStats-stat-header {
+    font: var(--jflix-type-label);
+    letter-spacing: 0.01em;
+    color: var(--jflix-text-tertiary);
+    text-transform: uppercase;
+}
+
+/* Stock `#ccc`. */
+.playerStats-closeButton,
+.subtitleSync-closeButton {
+    color: var(--jflix-text-secondary);
+}
+
+.subtitleSyncContainer {
+    background: rgba(35, 35, 35, .92);
+    color: var(--jflix-text-primary);
+    border-radius: var(--jflix-radius-md);
+    box-shadow: var(--jflix-elev-2);
+}
+
+/* Stock hard-codes `font-size:20px; color:white` here, which is already right;
+   only the family and tabular figures are added so "+0.5s" does not jitter. */
+.subtitleSyncTextField {
+    font-family: var(--jflix-font-num);
+    font-variant-numeric: tabular-nums;
+    color: var(--jflix-text-primary);
+}
+
+/* ----------------------------------------------------------------------------
+ * M. Now-playing bar (audio / remote only)
+ * Never shown for local video (`nowPlayingBar.js:649`) and never on TV. It is a
+ * floating layer pinned to the bottom, so elevation at rest is allowed; a
+ * hairline separates it from the page for the case where the shadow is
+ * suppressed (forced-colors, reduced transparency).
+ * `.appfooter`'s `z-index:1201 !important`, `contain: layout style` and the
+ * Headroom `transform` are stock and untouched.
+ * -------------------------------------------------------------------------- */
+
+.appfooter {
+    background: var(--jflix-surface-1);
+    color: var(--jflix-text-secondary);
+    border-top: 1px solid var(--jflix-line-hairline);
+    box-shadow: var(--jflix-elev-1);
+}
+
+.nowPlayingBarTop {
+    height: 64px;
+    padding-left: max(var(--jflix-space-4), env(safe-area-inset-left));
+    padding-right: max(var(--jflix-space-4), env(safe-area-inset-right));
+}
+
+.nowPlayingBar .nowPlayingImage {
+    border-radius: var(--jflix-radius-sm);
+    height: 48px;
+    width: 48px;
+}
+
+.nowPlayingBarText {
+    font: var(--jflix-type-body);
+    color: var(--jflix-text-primary);
+}
+
+/* `.nowPlayingBarSecondaryText` takes --jf-palette-text-secondary from
+   _theme.scss:258, which the bridge already points at --jflix-text-secondary;
+   only the size is set. */
+.nowPlayingBarSecondaryText {
+    font: var(--jflix-type-body-sm);
+}
+
+.nowPlayingBarCurrentTime {
+    font: var(--jflix-type-body-sm);
+    font-family: var(--jflix-font-num);
+    font-variant-numeric: tabular-nums;
+    color: var(--jflix-text-secondary);
+}
+
+/* `.mediaButton` is a `.paper-icon-button-light` — scoped to the two player
+   containers, never globally (§3.16). */
+.nowPlayingBar .mediaButton,
+#nowPlayingPage .mediaButton {
+    width: var(--jflix-control-h);
+    height: var(--jflix-control-h);
+    padding: 0;
+    font-size: inherit;
+    border-radius: var(--jflix-radius-circle);
+    color: var(--jflix-text-secondary);
+    transition-property: background-color, color, transform;
+    transition-duration: var(--jflix-dur-fast);
+    transition-timing-function: var(--jflix-ease-exit);
+}
+
+.nowPlayingBar .mediaButton > .material-icons,
+#nowPlayingPage .mediaButton > .material-icons {
+    font-size: var(--jflix-icon-lg);
+}
+
+.nowPlayingBar .playPauseButton > .material-icons {
+    font-size: var(--jflix-icon-xl);
+}
+
+/* The progress rail that floats on the bar's top edge. Stock's
+   `position:absolute !important` and `top:-0.56em` are untouched — only the
+   painted bars, which otherwise inherit the generic white settings-slider. The
+   played portion is the "watch-progress fill" accent slot (§2.3). (0,2,0). */
+.nowPlayingBarPositionContainer .mdl-slider-background-flex {
+    background: var(--jflix-progress-track);
+}
+
+.nowPlayingBarPositionContainer .mdl-slider-background-lower {
+    background-color: var(--jflix-accent);
+}
+
+/* `.buttonActive` is the ONE real "selected" hook in this subsystem
+   (nowPlayingBar.js:380,577 · remotecontrol.js:342,520 — repeat, shuffle,
+   lyrics). Stock is `color: var(--jf-palette-primary-main) !important`, which
+   the bridge already turns into --jflix-accent, so the colour needs no rule;
+   what §3.16's "States" row adds is the second channel — the 4px dot — so the
+   state survives greyscale and colour-blindness (§5.3). `overflow:visible` is
+   required or the dot is clipped to the button's circle. */
+.nowPlayingBar .buttonActive,
+#nowPlayingPage .buttonActive {
+    overflow: visible;
+}
+
+.nowPlayingBar .buttonActive::after,
+#nowPlayingPage .buttonActive::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 2px;
+    width: 4px;
+    height: 4px;
+    margin-left: -2px;
+    border-radius: var(--jflix-radius-circle);
+    background: var(--jflix-accent);
+}
+
+/* ----------------------------------------------------------------------------
+ * N. Remote-control / queue page (`#nowPlayingPage`)
+ * Mostly layout in stock, with two literals: the artwork's `0 0 1.9vh #000`
+ * shadow and a `.2em` radius. The page is `.selfBackdropPage`, so its surfaces
+ * sit over artwork and follow §1.2's art -> scrim -> text law.
+ * -------------------------------------------------------------------------- */
+
+#nowPlayingPage .nowPlayingPageImage {
+    border-radius: var(--jflix-radius-tile);
+    box-shadow: var(--jflix-elev-3);
+}
+
+#nowPlayingPage .nowPlayingPageTitle {
+    font: var(--jflix-type-h2);
+    letter-spacing: -0.012em;
+    color: var(--jflix-text-primary);
+}
+
+#nowPlayingPage .nowPlayingSongName {
+    font: var(--jflix-type-h3);
+    color: var(--jflix-text-primary);
+}
+
+#nowPlayingPage .nowPlayingAlbum,
+#nowPlayingPage .nowPlayingArtist {
+    font: var(--jflix-type-body);
+    color: var(--jflix-text-secondary);
+}
+
+#nowPlayingPage .positionTime,
+#nowPlayingPage .runtime {
+    font: var(--jflix-type-body-sm);
+    font-family: var(--jflix-font-num);
+    font-variant-numeric: tabular-nums;
+    color: var(--jflix-text-secondary);
+}
+
+#nowPlayingPage .nowPlayingPositionSliderContainer .mdl-slider-background-lower {
+    background-color: var(--jflix-accent);
+}
+
+/* The D-pad block. Stock gives each arrow an asymmetric radius; the tokens keep
+   the shape but land it on the radius ladder. These six buttons carry
+   `.button-submit` in the template, so 10-global.css already paints them white
+   — and it deliberately splits colour from geometry there
+   (`.button-submit:not(.paper-icon-button-light)`) so this shape survives. */
+#nowPlayingPage .navigationSection .btnArrowUp,
+#nowPlayingPage .navigationSection .btnArrowLeft,
+#nowPlayingPage .navigationSection .btnArrowRight,
+#nowPlayingPage .navigationSection .btnArrowDown,
+#nowPlayingPage .navigationSection .btnOk {
+    width: var(--jflix-control-h-lg);
+    height: var(--jflix-control-h-lg);
+    padding: 0;
+}
+
+#nowPlayingPage .contextMenuList,
+#nowPlayingPage .nowPlayingPlaylist {
+    background: transparent;
+}
+
+/* ----------------------------------------------------------------------------
+ * O. Narrow layouts
+ * §3.16: gap 24 desktop / 16 mobile. The switch is the LAYOUT CLASS, not a
+ * width (house rule 10) — an 820px tablet reports layout-mobile.
+ * Stock's five `display:none !important` breakpoints (30/33.75/43/50/75em) are
+ * NOT fought; what remains at 390px is ⏸ · ⚙ · PiP · ⛶ plus the scrubber row.
+ * -------------------------------------------------------------------------- */
+
+html.layout-mobile .videoOsdBottom .buttons,
+html.layout-mobile .videoOsdBottom .buttons > div[dir="ltr"] {
+    gap: var(--jflix-space-4);
+}
+
+/* A 180px shelf over a 844px-tall phone screen is a quarter of the picture.
+   The scrim run-up shrinks; the 24px foot and the 48px targets do not. */
+html.layout-mobile .videoOsdBottom {
+    min-height: 140px;
+    padding-top: 32px;
+}
+
+html.layout-mobile .skinHeader.osdHeader {
+    height: 96px;
+}
+
+/* Two 48px time labels plus a 390px viewport leaves the scrubber 230px; the
+   long-form width is not worth it there. */
+html.layout-mobile .startTimeText,
+html.layout-mobile .endTimeText {
+    font: var(--jflix-type-body-sm);
+    font-family: var(--jflix-font-num);
+    min-width: 40px;
+}
+
+/* The card is wider than a 390px screen minus two gutters. */
+html.layout-mobile .upNextContainer.upNextDialog {
+    max-width: calc(100vw - 2 * var(--jflix-gutter));
+}
+
+/* ----------------------------------------------------------------------------
+ * P. TV (§3.16 "TV", §4.5)
+ * Transport 64x64, glyphs 36, track 6px, knob 20px, times 24px. The OSD's
+ * never-auto-hide-while-focused behaviour is JS (`video/index.js` checks
+ * `document.activeElement` before hiding) and nothing here touches it.
+ * `html.layout-tv` is (0,1,1), so every rule below already out-specifies its
+ * desktop counterpart by one element; where the desktop rule is a compound
+ * pseudo-class chain the TV selector repeats it, and the reason is noted.
+ * -------------------------------------------------------------------------- */
+
+html.layout-tv .videoOsdBottom {
+    min-height: 260px;
+    padding-top: 64px;
+    padding-bottom: 40px;
+}
+
+html.layout-tv .videoOsdBottom .paper-icon-button-light {
+    width: 64px;
+    height: 64px;
+}
+
+html.layout-tv .videoOsdBottom .paper-icon-button-light > .material-icons {
+    font-size: 36px;
+}
+
+html.layout-tv .videoOsdBottom .btnPause {
+    width: 72px;
+    height: 72px;
+}
+
+html.layout-tv .videoOsdBottom .btnPause > .material-icons {
+    font-size: 40px;
+}
+
+html.layout-tv .startTimeText,
+html.layout-tv .endTimeText {
+    font: 400 24px/1.4 var(--jflix-font-num);
+    font-variant-numeric: tabular-nums;
+    min-width: 76px;
+}
+
+html.layout-tv .osdTimeText {
+    font: 400 24px/1.4 var(--jflix-font);
+}
+
+/* Track 6px / knob 20px. The desktop knob rules that have to be beaten are the
+   `(hover:hover)` custom-property block — which a TV browser may well match —
+   and the size rule itself, so the values are re-declared on the same custom
+   properties at (0,4,1). */
+html.layout-tv .osdControls .sliderContainer.flex-grow {
+    --jflix-osd-track: 6px;
+    --jflix-osd-knob: 20px;
+    min-height: 28px;
+}
+
+html.layout-tv .osdControls .sliderContainer.flex-grow:hover,
+html.layout-tv .osdControls .sliderContainer.flex-grow:focus-within {
+    --jflix-osd-track: 10px;
+    --jflix-osd-knob: 20px;
+}
+
+/* `.show-focus` is added to every slider on TV and stock scales the thumb 1.3;
+   the size is carried by the custom property instead. (0,4,2). */
+html.layout-tv .osdPositionSlider.show-focus:focus::-webkit-slider-thumb {
+    transform: none;
+    box-shadow: var(--jflix-focus-ring-tv);
+}
+
+html.layout-tv .osdPositionSlider.show-focus:focus::-moz-range-thumb {
+    transform: none;
+    box-shadow: var(--jflix-focus-ring-tv);
+}
+
+/* §4.5 / §3.16's TV bullet: the focused control gets the TV ring plus a
+   --jflix-surface-3 fill. 10-global.css §8 already supplies the fill for
+   `.emby-button.show-focus:focus`; the OSD's transport buttons are
+   `paper-icon-button-light`, which §8 does not cover, so the fill is added
+   here. Stock's `transform: scale(1.3)` on `.show-focus:focus` is deliberately
+   left intact (§4.5 makes it the TV motion). */
+html.layout-tv .videoOsdBottom .paper-icon-button-light.show-focus:focus {
+    background-color: var(--jflix-surface-3);
+    color: var(--jflix-text-primary);
+}
+
+html.layout-tv .skinHeader.osdHeader {
+    height: 140px;
+}
+
+html.layout-tv .skinHeader.osdHeader .headerTop {
+    min-height: 72px;
+    max-height: 72px;
+}
+
+html.layout-tv .skinHeader.osdHeader .headerButton.paper-icon-button-light {
+    width: var(--jflix-control-h);
+    height: var(--jflix-control-h);
+}
+
+html.layout-tv .skinHeader.osdHeader .headerButton > .material-icons {
+    font-size: var(--jflix-icon-tv);
+}
+
+/* The up-next card is the TV's default-focused surface — it needs to be legible
+   at 3 m, and `.btnStartNow` must carry --jflix-focus-ring-tv (§3.17). The ring
+   arrives through --jflix-focus-ring, which the TV token column re-points at
+   --jflix-focus-ring-tv, via 10-global.css's `html.layout-tv button:focus`. */
+html.layout-tv .upNextContainer.upNextDialog {
+    max-width: 560px;
+    padding: var(--jflix-space-6);
+}
+
+html.layout-tv .upNextDialog-button {
+    min-height: var(--jflix-control-h);
+    font: var(--jflix-type-button);
+}
+
+html.layout-tv .skip-button {
+    font: 700 24px/1 var(--jflix-font);
+}
+
+/* ----------------------------------------------------------------------------
+ * Q. Accessibility media blocks
+ * The token file already collapses --jflix-dur-* under reduced motion, which
+ * covers every transition above because none of them uses a literal duration.
+ * What is left is the two size/position animations that reduced motion should
+ * remove outright, and the forced-colors fallbacks for the surfaces this file
+ * paints with shadows and scrims.
+ * -------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+    /* The knob/track grow is a size change, not a fade — removed rather than
+       shortened. The `transitionend`-driven OSD auto-hide is NOT touched: it
+       still transitions `opacity`, at the 1 ms the token column sets, so
+       `.hide` is still applied. */
+    .osdControls .sliderContainer.flex-grow .mdl-slider-background-flex {
+        transition-property: none;
+    }
+
+    .osdPositionSlider::-webkit-slider-thumb {
+        transition-property: none;
+    }
+
+    .osdPositionSlider::-moz-range-thumb {
+        transition-property: none;
+    }
+
+    /* The pill keeps its fade (the hide listener depends on it) but loses the
+       8px rise. */
+    .skip-button-hidden {
+        transform: translateY(0);
+    }
+}
+
+/* Translucent player surfaces go opaque; the two light pills are already
+   opaque-ish and are pinned fully opaque here. */
+@media (prefers-reduced-transparency: reduce) {
+    .upNextContainer.upNextDialog,
+    .playerStats,
+    .subtitleSyncContainer,
+    .iconOsd {
+        background: var(--jflix-surface-3);
+    }
+
+    .skip-button {
+        background-color: var(--jflix-osd-paper);
+    }
+}
+
+/* Windows High Contrast drops box-shadow (so the focus ring, which 10-global.css
+   draws as a shadow, disappears) and forces its own palette. Every floating
+   player surface gets a real border so it still separates, and the scrims —
+   which are background-images and are also dropped — are replaced by the
+   system Canvas colour so OSD text keeps a background to sit on. */
+@media (forced-colors: active) {
+    .videoOsdBottom,
+    .skinHeader.osdHeader {
+        background: Canvas;
+        forced-color-adjust: none;
+    }
+
+    .upNextContainer.upNextDialog,
+    .playerStats,
+    .subtitleSyncContainer,
+    .iconOsd,
+    .skip-button,
+    .sliderBubble {
+        border: 1px solid CanvasText;
+    }
+
+    .osdControls .sliderContainer.flex-grow .mdl-slider-background-lower {
+        background-color: Highlight;
+    }
+
+    .osdControls .sliderContainer.flex-grow .mdl-slider-background-flex {
+        border: 1px solid CanvasText;
+    }
+
+    .videoOsdBottom .paper-icon-button-light:focus-visible,
+    .skip-button:focus-visible {
+        outline: 3px solid Highlight !important;
+        outline-offset: 2px;
+    }
+}

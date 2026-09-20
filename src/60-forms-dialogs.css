@@ -1,0 +1,1425 @@
+/* ============================================================================
+ * JellyFlix — 60-forms-dialogs.css
+ * §3.15 Forms, dialogs, menus, toasts — plus the surfaces those components sit
+ * on (.paperList / .visualCardBox / .collapseContent / .formDialog* chrome),
+ * tooltips, chips and the alert / info banner.
+ *
+ * Scope: every control that takes input, every floating layer that is not the
+ * app bar, the drawer or the player OSD. Buttons are NOT here — 10-global.css
+ * §9 owns the Primary / Secondary / Ghost / destructive recipes and this file
+ * never repeats them.
+ *
+ * Cascade: Custom CSS is the last sheet in the document, so a TIE on
+ * specificity is won here. Every rule below states the stock selector it has to
+ * match. Where stock used a compound selector this file repeats it exactly —
+ * `.emby-checkbox:checked + span + .checkboxOutline` is (0,3,0) and a bare
+ * `.checkboxOutline{}` at (0,1,0) would lose.
+ *
+ * ----------------------------------------------------------------------------
+ * DECISIONS AND DEVIATIONS (each one is argued at its own site too)
+ * ----------------------------------------------------------------------------
+ * D1  FilledInput border, the conflict 00-tokens.css flagged: the field border
+ *     at REST is --jflix-line-strong, not --jflix-line-subtle and not
+ *     `1px solid transparent`. See §2 below for the contrast arithmetic.
+ * D2  Toggle knob travels with `left`, not `translateX(16px)` as §3.15 writes:
+ *     stock transitions `left` and sets `left:1.466em` on the checked knob, so
+ *     a transform would fight an animated property instead of replacing it.
+ *     Same geometry, same 160 ms.
+ * D3  No injected "on/off" text on the toggle. §3.15 asks for one, but the
+ *     string would need a --jflix-label-* token (§2.14) that does not exist and
+ *     tokens are 00-tokens.css's file. The toggle already carries a non-hue
+ *     second channel (knob position), so §5.3 is satisfied without it.
+ *     CROSS-MODULE: add --jflix-label-on / --jflix-label-off to §2.14.
+ * D4  Slider track ships §3.15's literal rgba(255,255,255,.28) on dark and is
+ *     re-declared for html[data-theme="light"] in this file, because a
+ *     white-on-white track is unreadable there (§7.1 light gate).
+ * D5  The select chevron is re-anchored in px. Stock positions it with three
+ *     em lengths that resolve against the root font size (14.88 / 14.4 / 20),
+ *     so once the label becomes a fixed 12 px it drifts ~12 px on TV.
+ * D6  Field font is --jflix-type-body (14 px) exactly as §3.15 says. Stock uses
+ *     110 % deliberately ("must be 16px or larger to prevent iOS page zoom on
+ *     focus", emby-input.scss:9). On iOS Safari a 14 px field therefore zooms
+ *     the page on focus. SPEC: §3.15 should either accept that or say 16 px.
+ * ========================================================================== */
+
+/* ----------------------------------------------------------------------------
+ * 1. Field wrappers, labels, helper text
+ *
+ * Labels are ALWAYS above the field and never float (§3.15). Legacy already
+ * renders them that way — `.inputLabel-float` is a JS marker with no CSS — so
+ * only MUI's filled variant has to be un-floated, in §3 below.
+ * -------------------------------------------------------------------------- */
+
+/* Stock gives all four wrappers `margin-bottom:1.8em` (26.8px desktop, 36px on
+   TV) at (0,1,0). --jflix-field-gap is the §2.7 number and already carries the
+   compact (8) and TV (20) columns. */
+.inputContainer,
+.selectContainer,
+.checkboxContainer,
+.checkboxListContainer,
+.toggleContainer,
+.sliderContainer-settings {
+    margin-bottom: var(--jflix-field-gap);
+}
+
+/* Label at rest. Stock paints these from --jf-palette-text-secondary
+   (_theme.scss:203-209) at (0,1,0) and gives no size, so they inherit 14.88px.
+   `display:block` keeps the label on its own line for `.selectLabel`'s
+   inline-flex parent case and matches `.inputLabel`'s stock `inline-block`. */
+.inputLabel,
+.inputLabelUnfocused,
+.selectLabel,
+.textareaLabel,
+.textareaLabelUnfocused,
+.checkboxListLabel,
+.paperListLabel,
+.sliderLabel {
+    display: block;
+    margin-bottom: 6px;
+    font: var(--jflix-type-label);
+    letter-spacing: 0.01em;
+    color: var(--jflix-text-secondary);
+}
+
+/* Focused label -> --jflix-text-primary. Stock (_theme.scss:211-215) paints it
+   --jf-palette-secondary-main, which the bridge has already re-pointed to
+   --jflix-line-invert (#FFF dark / #0B0B0B light) — the same colour — but the
+   dependency is not obvious, so it is stated explicitly here. */
+.inputLabelFocused,
+.selectLabelFocused,
+.textareaLabelFocused {
+    color: var(--jflix-text-primary);
+}
+
+/* Helper text / field descriptions. `.fieldDescription` is the legacy one and
+   inherits 14.88px; MUI forces its helper text to 1rem in the base theme
+   (themes/_base/theme.ts:89-95, compiled into the emotion class at (0,1,0)),
+   so a bare `.MuiFormHelperText-root` ties and wins on source order.
+   --jflix-text-tertiary on the surface-0 page is 6.5:1 and on the surface-4
+   field fill 5.53:1 — §5.1 row 4, the tightest text pair in the theme. */
+.fieldDescription,
+.checkboxFieldDescription,
+.MuiFormHelperText-root {
+    margin-top: 6px;
+    font: var(--jflix-type-label);
+    letter-spacing: 0.01em;
+    color: var(--jflix-text-tertiary);
+}
+
+/* Error helper text. §3.15 requires a 16px warning icon next to it so the state
+   is not carried by colour alone (§5.3). The glyph is drawn with the Material
+   Icons ligature font the app already loads; `content` is a codepoint, not a
+   translatable string, so §2.14 does not apply. --jflix-danger-text on
+   surface-3 is 5.66:1 (§5.1 row 11). */
+.MuiFormHelperText-root.Mui-error,
+.fieldDescription.error {
+    color: var(--jflix-danger-text);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.MuiFormHelperText-root.Mui-error::before,
+.fieldDescription.error::before {
+    content: "\e002";                   /* material-icons "warning" */
+    font-family: "Material Icons", sans-serif;
+    font-size: var(--jflix-icon-sm);
+    line-height: 1;
+    flex-shrink: 0;
+    font-weight: 400;
+    letter-spacing: 0;
+}
+
+/* ----------------------------------------------------------------------------
+ * 2. Text inputs and textareas (legacy `.emby-input` / `.emby-textarea`)
+ *
+ * D1 — THE FilledInput BORDER CONFLICT, resolved here as 00-tokens.css asked.
+ *
+ * The three positions were: §2.1 "line-subtle = field border at rest",
+ * §3.15 "1px solid transparent at rest, line-subtle on hover", and §5.1
+ * "UI component boundaries >= 3:1". Measured against the shipped surfaces:
+ *
+ *   fill --jflix-surface-4 (#2B2B2B) vs page --jflix-surface-0   1.39:1  FAIL
+ *   border .16 over the fill  -> rgb(77,77,77)  vs page          2.33:1  FAIL
+ *   border .38 over the fill  -> rgb(124,124,124) vs page        4.71:1  PASS
+ *                                                 vs the fill    3.39:1  PASS
+ *
+ * The opaque fill alone cannot delimit the control, so the border has to, and
+ * only --jflix-line-strong clears 3:1 on BOTH sides. A transparent rest border
+ * would leave the field with no legal boundary at all, so §3.15's rest value is
+ * the one that gives way. The ladder becomes
+ *   rest  1px --jflix-line-strong
+ *   hover 1px --jflix-line-invert
+ *   focus 2px --jflix-line-invert + the ring
+ * which keeps three distinguishable steps out of tokens that already exist.
+ * SPEC: fix §2.1 (line-subtle is the CHIP border, not the field border) and
+ * §3.15's rest/hover pair. CROSS-MODULE: 00-tokens.css may follow by pointing
+ * --jf-palette-FilledInput-borderColor at --jflix-line-strong; every rule below
+ * sets border-color by selector, so nothing depends on that hook today.
+ *
+ * Stock `.emby-input,.emby-textarea` (_theme.scss:394-406) is (0,1,0) and sets
+ * background / border-color / border-width .16em / border-style / radius .2em.
+ * Everything here ties it and wins on order. `margin-bottom:0!important` and
+ * `outline:none!important` (emby-input.scss:4,14) are not touched — §3.15 says
+ * to match them, and this file writes neither property.
+ * -------------------------------------------------------------------------- */
+
+.emby-input,
+.emby-textarea {
+    box-sizing: border-box;
+    background-color: var(--jflix-surface-4);
+    border: 1px solid var(--jflix-line-strong);
+    border-radius: var(--jflix-radius-sm);
+    color: var(--jflix-text-primary);
+    font: var(--jflix-type-body);
+    transition:
+        background-color var(--jflix-dur-fast) var(--jflix-ease-exit),
+        border-color var(--jflix-dur-fast) var(--jflix-ease-exit);
+}
+
+/* Height and inline padding are split off `.emby-textarea`, which must grow
+   with its rows. `height` is safe next to the stock `font-size:110%` override
+   above because box-sizing is border-box, so the 1px->2px border swap on focus
+   costs no layout shift. `.emby-input[type=color]{height:2.5em}` is (0,2,0) and
+   deliberately still wins — a colour swatch is not a text field. */
+.emby-input {
+    height: var(--jflix-control-h);
+    padding: 0 12px;
+}
+
+.emby-textarea {
+    padding: 8px 12px;
+    line-height: 1.5;
+}
+
+/* Hover. Stock has no hover rule on these, so (0,2,0) is only needed to beat
+   the rest rule above on source order — which it does at any specificity. */
+.emby-input:hover,
+.emby-textarea:hover {
+    border-color: var(--jflix-line-invert);
+}
+
+/* Focus. Stock `.emby-input:focus{border-color:secondary-main}` is (0,2,0);
+   this ties and wins. Written as TWO rules because a selector list containing
+   :focus-visible is dropped whole by engines that lack the pseudo-class
+   (Tizen 2021) — the plain :focus rule below is what those engines get, and
+   html.layout-tv uses :focus anyway (§4.3). The ring itself is already on
+   `.emby-input:focus-visible` in 10-global.css §5; box-shadow is NOT written
+   here, or it would erase it. */
+.emby-input:focus-visible,
+.emby-textarea:focus-visible {
+    border-width: 2px;
+    border-color: var(--jflix-line-invert);
+    background-color: var(--jflix-surface-5);
+}
+
+.emby-input:focus,
+.emby-textarea:focus {
+    border-width: 2px;
+    border-color: var(--jflix-line-invert);
+    background-color: var(--jflix-surface-5);
+}
+
+/* Invalid. `.Mui-error` is handled in §3; `:invalid` is the legacy equivalent
+   and is scoped to fields the user has actually touched by pairing it with
+   `:not(:placeholder-shown)` — an untouched required field is not an error. */
+.emby-input:invalid:not(:placeholder-shown),
+.emby-textarea:invalid:not(:placeholder-shown) {
+    border-width: 2px;
+    border-color: var(--jflix-danger-text);
+}
+
+/* Disabled (§3.15: fill rgba(255,255,255,.04), no border, not-allowed). */
+.emby-input:disabled,
+.emby-textarea:disabled {
+    background-color: rgba(255, 255, 255, .04);
+    border-color: transparent;
+    color: var(--jflix-text-disabled);
+    cursor: not-allowed;
+}
+
+/* ----------------------------------------------------------------------------
+ * 3. MUI filled inputs, labels and selects
+ *
+ * The default MUI variant in this app is `filled`
+ * (themes/_base/theme.ts:84-96), so every React field is a
+ * `.MuiFilledInput-root` with a floating `.MuiInputLabel-filled` and an
+ * underline drawn by ::before / ::after. §3.15 forbids floating labels, so the
+ * label is taken out of the field and put above it, the field's reserved top
+ * padding is removed, and the underline is replaced by the same border ladder
+ * as the legacy fields.
+ *
+ * MUI's own rules live in emotion classes at (0,1,0) (plus (0,2,0) for state
+ * compounds such as `.css-x.MuiInputLabel-shrink`), and emotion always sorts
+ * BEFORE Custom CSS (foundation G1), so the stable MUI class names tie and win.
+ * Never target the `css-*` hashes (§0.2 rule 4).
+ * -------------------------------------------------------------------------- */
+
+/* Un-float the label: static position drops it into `.MuiFormControl-root`'s
+   flex column, which puts it directly above the input. (0,2,0) is required to
+   beat `<hash>.MuiInputLabel-shrink`'s transform. */
+.MuiInputLabel-root.MuiInputLabel-filled {
+    position: static;
+    transform: none;
+    max-width: 100%;
+    margin-bottom: 6px;
+    font: var(--jflix-type-label);
+    letter-spacing: 0.01em;
+    color: var(--jflix-text-secondary);
+    pointer-events: auto;
+}
+
+/* The shrink state is the same state now — no scale, no translate. (0,3,0). */
+.MuiInputLabel-root.MuiInputLabel-filled.MuiInputLabel-shrink {
+    transform: none;
+}
+
+.MuiInputLabel-root.MuiInputLabel-filled.Mui-focused {
+    color: var(--jflix-text-primary);
+}
+
+.MuiInputLabel-root.MuiInputLabel-filled.Mui-error {
+    color: var(--jflix-danger-text);
+}
+
+/* The field itself. MUI's filled root reserves `padding:25px 12px 8px` for the
+   floating label (measured live on #/dashboard/branding) — with the label gone
+   that space is dead, so the root keeps only the inline padding and the input
+   inside it loses its own. */
+.MuiInputBase-root.MuiFilledInput-root {
+    box-sizing: border-box;
+    background-color: var(--jflix-surface-4);
+    border: 1px solid var(--jflix-line-strong);
+    border-radius: var(--jflix-radius-sm);
+    color: var(--jflix-text-primary);
+    font: var(--jflix-type-body);
+    min-height: var(--jflix-control-h);
+    padding: 0 12px;
+    transition:
+        background-color var(--jflix-dur-fast) var(--jflix-ease-exit),
+        border-color var(--jflix-dur-fast) var(--jflix-ease-exit);
+}
+
+/* Multiline needs block padding back; the textarea itself has none. */
+.MuiInputBase-root.MuiFilledInput-multiline {
+    padding: 8px 12px;
+}
+
+.MuiFilledInput-input {
+    padding: 0;
+    font: var(--jflix-type-body);
+    color: var(--jflix-text-primary);
+}
+
+/* The filled underline is MUI's focus affordance and is drawn from
+   palette.primary.main — i.e. the JellyFlix accent — which §2.3 does not list
+   as an accent slot. Both pseudo-elements are removed and the border above
+   carries the state instead. MUI's rules are `<hash>.MuiFilledInput-underline
+   ::before/::after` at (0,2,1); these tie at (0,2,1) and win on order. */
+.MuiFilledInput-root.MuiFilledInput-underline::before,
+.MuiFilledInput-root.MuiFilledInput-underline::after {
+    border-bottom: 0;
+    content: none;
+}
+
+/* Hover. MUI paints `--jf-palette-FilledInput-hoverBg` (rgba(255,255,255,.13))
+   on hover, which is TRANSLUCENT — measured live on #/dashboard/branding as
+   rgba(255,255,255,0.13) over the page, i.e. exactly the unreadable state §2.16
+   set the opaque fill to avoid. The fill is held and only the border moves. */
+.MuiInputBase-root.MuiFilledInput-root:hover {
+    background-color: var(--jflix-surface-4);
+    border-color: var(--jflix-line-invert);
+}
+
+/* Focus. `.Mui-focused` is the only stable hook — the focusable element is the
+   inner <input>, so a :focus-visible rule on the root would never match. The
+   ring is moved from the inner input (where 10-global.css §5's `input:
+   focus-visible` at (0,1,1) would draw it INSIDE the field) out to the root. */
+.MuiInputBase-input:focus-visible {
+    box-shadow: none;
+}
+
+.MuiInputBase-root.MuiFilledInput-root.Mui-focused {
+    background-color: var(--jflix-surface-5);
+    border-width: 2px;
+    border-color: var(--jflix-line-invert);
+    box-shadow: var(--jflix-focus-ring);
+}
+
+.MuiInputBase-root.MuiFilledInput-root.Mui-error {
+    border-width: 2px;
+    border-color: var(--jflix-danger-text);
+}
+
+.MuiInputBase-root.MuiFilledInput-root.Mui-disabled {
+    background-color: rgba(255, 255, 255, .04);
+    border-color: transparent;
+    color: var(--jflix-text-disabled);
+    cursor: not-allowed;
+}
+
+/* MUI select: the chevron and the display box. `.MuiSelect-select` is the
+   `div[role=combobox]`, so it needs the field's line-height, and
+   `.MuiSelect-icon` is absolutely positioned at `right:7px` by MUI. */
+.MuiSelect-select.MuiFilledInput-input {
+    display: flex;
+    align-items: center;
+    min-height: 0;
+    padding: 0;
+    padding-right: 28px;
+}
+
+.MuiSelect-icon {
+    color: var(--jflix-text-tertiary);
+    right: 8px;
+}
+
+/* ----------------------------------------------------------------------------
+ * 4. Legacy selects (`.emby-select`, `.emby-select-withcolor`)
+ *
+ * Stock paints the select from --jf-palette-background-paper, not FilledInput-bg
+ * (_theme.scss:408-417, with a source comment saying it "should" use the field
+ * fill but that changing it breaks native dropdown styling). §3.15 puts the
+ * field on --jflix-surface-4 and the OPTIONS on --jflix-surface-3, which is
+ * what the bridge already gives `> option`, so the native list stays legible.
+ *
+ * D5 — the chevron. Stock geometry is
+ *   .selectArrowContainer{position:absolute; top:.2em}   (relative to
+ *     .selectContainer, i.e. measured from the top of the LABEL)
+ *   .selectArrow{margin-top:1.2em; font-size:1.7em}
+ * All three lengths resolve against the root font size, which is 14.88px on
+ * desktop, 14.4px on mobile and 20px on TV, while the JellyFlix label is a
+ * fixed 12px/1.35 + 6px = 22px block on every profile. Left alone the chevron
+ * lands ~12px below the field on TV. It is therefore re-anchored in px:
+ *   top = label block (22px) + half of (control height - glyph height).
+ * The inline variant keeps stock's bottom-anchoring, re-derived the same way.
+ * -------------------------------------------------------------------------- */
+
+.emby-select,
+.emby-select-withcolor {
+    box-sizing: border-box;
+    height: var(--jflix-control-h);
+    background-color: var(--jflix-surface-4);
+    border: 1px solid var(--jflix-line-strong);
+    border-radius: var(--jflix-radius-sm);
+    color: var(--jflix-text-primary);
+    font: var(--jflix-type-body);
+    transition:
+        background-color var(--jflix-dur-fast) var(--jflix-ease-exit),
+        border-color var(--jflix-dur-fast) var(--jflix-ease-exit);
+}
+
+/* Stock writes the select's padding as `[dir="ltr"] .emby-select{padding:.5em
+   1.9em .5em .5em}` (0,2,0) — a bare `.emby-select{padding}` would LOSE. Both
+   directions are written out; logical properties are Chromium 87+ and fail on
+   webOS 22 / Tizen 2021. The 40px inline end leaves 12px gutter + 20px glyph +
+   8px gap for the chevron. */
+[dir="ltr"] .emby-select,
+[dir="ltr"] .emby-select-withcolor {
+    padding: 0 40px 0 12px;
+}
+
+[dir="rtl"] .emby-select,
+[dir="rtl"] .emby-select-withcolor {
+    padding: 0 12px 0 40px;
+}
+
+.emby-select-withcolor > option {
+    background-color: var(--jflix-surface-3);
+    color: var(--jflix-text-primary);
+}
+
+.emby-select:hover,
+.emby-select-withcolor:hover {
+    border-color: var(--jflix-line-invert);
+}
+
+/* Stock ships `.emby-select-withcolor:focus{border-color:secondary-main
+   !important}` (_theme.scss:425-427) — !important is matched here because stock
+   used it on this exact property (§0.2 rule 3). Two rules, never one list:
+   an engine without :focus-visible must still get the plain :focus rule. */
+.emby-select:focus-visible,
+.emby-select-withcolor:focus-visible {
+    border-width: 2px;
+    border-color: var(--jflix-line-invert) !important;
+    background-color: var(--jflix-surface-5);
+}
+
+.emby-select:focus,
+.emby-select-withcolor:focus {
+    border-width: 2px;
+    border-color: var(--jflix-line-invert) !important;
+    background-color: var(--jflix-surface-5);
+}
+
+/* `.emby-select[disabled]` already forces `background:none!important;
+   border-color:transparent!important` (emby-select.scss:30-35) and stock hides
+   the chevron for it, so only the text colour is left to set. */
+.emby-select[disabled] {
+    color: var(--jflix-text-disabled) !important;
+    cursor: not-allowed;
+}
+
+.selectArrowContainer {
+    top: calc(22px + (var(--jflix-control-h) - 20px) / 2);
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--jflix-text-tertiary);
+}
+
+[dir="ltr"] .selectArrowContainer {
+    right: 12px;
+}
+
+[dir="rtl"] .selectArrowContainer {
+    left: 12px;
+}
+
+.selectArrow {
+    margin-top: 0;
+    font-size: var(--jflix-icon-md);
+    line-height: 1;
+}
+
+/* Inline selects (`.trackSelections`, guide settings) have their label BESIDE
+   the field, so there is no 22px block above it. Stock anchors them from the
+   bottom (`top:initial; bottom:.24em`) at (0,2,0); this ties and re-derives the
+   offset from the control height. */
+.selectContainer-inline > .selectArrowContainer {
+    top: auto;
+    bottom: calc((var(--jflix-control-h) - 20px) / 2);
+}
+
+/* ----------------------------------------------------------------------------
+ * 5. Checkboxes
+ *
+ * LIST 2 in 00-tokens.css: the bridge's --jf-palette-primary-main turns the
+ * checked box accent-RED through `_theme.scss:434-441`, on the login page and
+ * on every preferences page. §3.15 and the §7.2 Preferences gate both demand a
+ * WHITE fill with a --jflix-text-on-light glyph — "or 'checked' reads as
+ * 'error'". This section owns that at (0,3,0)+ including `.checkboxIcon`.
+ *
+ * The fill is --jflix-btn-primary-bg, not the literal #FFFFFF: that token and
+ * --jflix-text-on-light are the pair 00-tokens.css defines for exactly this
+ * job, and they flip TOGETHER on html[data-theme="light"] (#0B0B0B fill,
+ * #FFFFFF glyph). A literal white fill would render a white glyph on white
+ * there. On dark the value is byte-identical to §3.15's #FFF.
+ * -------------------------------------------------------------------------- */
+
+/* The label is the click target (the real input is a 1x1 transparent box).
+   Stock: `padding-left:2.4em; height:2.35em` (0,1,0) — em again, so 35px on
+   desktop and 47px on TV. 32px = 20px box + 12px gap, and the min-height
+   follows --jflix-control-h, which is already 44 on pointer:coarse (§5.2) and
+   56 on TV. Stock has no RTL variant for this component; none is invented. */
+.emby-checkbox-label {
+    height: auto;
+    min-height: var(--jflix-control-h);
+    padding-left: 32px;
+    font: var(--jflix-type-body);
+    color: var(--jflix-text-primary);
+}
+
+/* 20x20 box, 2px --jflix-line-strong, --jflix-radius-xs (§3.15). Stock's
+   `top:3px` assumes the old 35px label; `top:50%` + a -10px margin centres the
+   box in whatever height the label ends up with, without a transform (Tizen
+   2021 handles margin arithmetic; it is also one less containing block). */
+.checkboxOutline {
+    top: 50%;
+    margin-top: -10px;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--jflix-line-strong);
+    border-radius: var(--jflix-radius-xs);
+    color: var(--jflix-text-primary);
+    transition:
+        background-color var(--jflix-dur-fast) var(--jflix-ease-exit),
+        border-color var(--jflix-dur-fast) var(--jflix-ease-exit);
+}
+
+/* `.checkboxOutline{overflow:hidden}` is stock, so the 1.6em (23.8px) glyph was
+   being clipped by the new 20px box. 16px fits with 2px of air on each side. */
+.checkboxIcon {
+    font-size: var(--jflix-icon-sm);
+    line-height: 1;
+}
+
+/* CHECKED — the (0,3,0) rule that out-specifies `_theme.scss:434-441`. Both
+   properties have to be re-pointed: stock paints background-color AND
+   border-color with primary-main. */
+.emby-checkbox:checked + span + .checkboxOutline {
+    background-color: var(--jflix-btn-primary-bg);
+    border-color: var(--jflix-btn-primary-bg);
+}
+
+/* The glyph. `.checkboxIcon{color:#fff}` is hard-coded (emby-checkbox.scss:
+   63-66) and would be white-on-white. Written at (0,4,0) so nothing in the
+   stock chain — including the `display:flex!important` toggle at the same
+   depth — can reorder around it. */
+.emby-checkbox:checked + span + .checkboxOutline > .checkboxIcon-checked {
+    color: var(--jflix-text-on-light);
+}
+
+/* Hover on the whole row. (0,2,0) + the sibling chain keeps it off the label
+   text, which already inherits its colour. */
+.emby-checkbox-label:hover > .checkboxOutline {
+    border-color: var(--jflix-line-invert);
+}
+
+/* FOCUS. 10-global.css §5 deliberately sets `box-shadow:none` on the 1x1 input
+   and hands the ring to this module. Stock's two focus rules
+   (`:focus + span + .checkboxOutline` (0,3,0) and
+   `:focus:not(:checked) + …` (0,4,0)) only repaint the border, so the ring is
+   added on top of them rather than replacing them.
+   Pointer platforms get :focus-visible — a checkbox does NOT match
+   :focus-visible on a mouse click in Chromium, which is the behaviour we want;
+   TV gets the plain :focus rule below at (0,4,2). */
+.emby-checkbox:focus-visible + span + .checkboxOutline {
+    box-shadow: var(--jflix-focus-ring);
+    border-color: var(--jflix-line-invert);
+}
+
+html.layout-tv .emby-checkbox:focus + span + .checkboxOutline {
+    box-shadow: var(--jflix-focus-ring);
+    border-color: var(--jflix-line-invert);
+}
+
+.emby-checkbox:disabled + span + .checkboxOutline {
+    border-color: var(--jflix-text-disabled);
+    cursor: not-allowed;
+}
+
+/* MUI checkboxes (26 call sites; the modern display-preferences form and every
+   dashboard form). MUI draws them as an SVG filled with `currentColor`, and
+   `.MuiCheckbox-colorPrimary.Mui-checked{color:primary.main}` at (0,2,0) is the
+   same LIST 2 red. The checked icon's tick is a hole in the path, so a white
+   box shows the page through the tick — the §3.15 look, for free. */
+.MuiCheckbox-root {
+    color: var(--jflix-line-strong);
+    border-radius: var(--jflix-radius-sm);
+}
+
+.MuiCheckbox-root.Mui-checked {
+    color: var(--jflix-btn-primary-bg);
+}
+
+.MuiCheckbox-root:hover {
+    background-color: var(--jflix-overlay-hover);
+}
+
+.MuiCheckbox-root.Mui-focusVisible {
+    box-shadow: var(--jflix-focus-ring);
+}
+
+.MuiCheckbox-root.Mui-disabled {
+    color: var(--jflix-text-disabled);
+}
+
+/* ----------------------------------------------------------------------------
+ * 6. Radios (`.mdl-radio__*`)
+ *
+ * The circles are an inline SVG whose stroke and fill are `currentcolor`
+ * (emby-radio.js:57-59), so they are painted with `color`. Three hard-coded
+ * #00a4dc live here (emby-radio.scss:72,91,103 by way of the .show-focus
+ * rules) and LIST 1 records that §3.15 names only the focus circle — the
+ * outer/inner circles had no owner, so this module takes all three.
+ * -------------------------------------------------------------------------- */
+
+/* §3.15: 20px circles. Stock is 1.08em, which is 16px on desktop and 22px on TV. */
+.mdl-radio__circles {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+}
+
+/* The touch target goes on the ROW, never on `.mdl-radio`. Stock ships BOTH
+   `.mdl-radio{display:inline-block}` and `.radio-label-block{display:flex}` at
+   (0,1,0) on the same element, and this file sorts last: a `display` on
+   `.mdl-radio` here beat `.radio-label-block` and collapsed the legacy sort
+   dialog's one-per-line radio list into crowded wrapped rows (caught on
+   legacy-desktop #/movies -> .btnSort, compared against the same shot without
+   this file). Only the height is claimed. */
+.radio-label-block {
+    min-height: var(--jflix-control-h);
+}
+
+.mdl-radio__outer-circle {
+    color: var(--jflix-line-strong);
+}
+
+.mdl-radio__inner-circle {
+    color: var(--jflix-text-primary);
+}
+
+.mdl-radio__label {
+    font: var(--jflix-type-body);
+    color: var(--jflix-text-primary);
+}
+
+/* Checked: the ring goes white so the filled dot reads as "selected" without
+   relying on the dot alone. (0,3,0) matches the stock checked selector depth. */
+.mdl-radio__button:checked + .mdl-radio__circles .mdl-radio__outer-circle {
+    color: var(--jflix-text-primary);
+}
+
+/* The two stock focus rules are (0,4,0) — `.mdl-radio.show-focus
+   .mdl-radio__button:focus + .mdl-radio__circles .mdl-radio__outer-circle`
+   and the same for __inner-circle — and both hard-code #00a4dc. Matched
+   exactly; a shorter selector would leave the blue in place. */
+.mdl-radio.show-focus .mdl-radio__button:focus + .mdl-radio__circles .mdl-radio__outer-circle {
+    color: var(--jflix-line-invert);
+}
+
+.mdl-radio.show-focus .mdl-radio__button:focus + .mdl-radio__circles .mdl-radio__inner-circle {
+    color: var(--jflix-text-primary);
+}
+
+/* §3.15: `.mdl-radio__focus-circle` -> --jflix-overlay-press. Stock's #00a4dc
+   is drawn at opacity .26; the token is already translucent, so the opacity is
+   lifted to 1 or the wash would be invisible (.14 * .26 = .036 alpha). */
+.mdl-radio__focus-circle {
+    background: var(--jflix-overlay-press);
+    opacity: 1;
+}
+
+/* The real input is 1x1 and transparent, so the ring goes on the circles. */
+.mdl-radio__button:focus-visible + .mdl-radio__circles {
+    box-shadow: var(--jflix-focus-ring);
+    border-radius: var(--jflix-radius-circle);
+}
+
+html.layout-tv .mdl-radio__button:focus + .mdl-radio__circles {
+    box-shadow: var(--jflix-focus-ring);
+    border-radius: var(--jflix-radius-circle);
+}
+
+/* Stock disables with `rgba(0,0,0,.26)` — black on a near-black page. */
+.mdl-radio__button:disabled + .mdl-radio__circles .mdl-radio__outer-circle,
+.mdl-radio__button:disabled + .mdl-radio__circles .mdl-radio__inner-circle {
+    color: var(--jflix-text-disabled);
+}
+
+.mdl-radio__button:disabled + .mdl-radio__label {
+    color: var(--jflix-text-disabled);
+}
+
+/* ----------------------------------------------------------------------------
+ * 7. Toggles / switches
+ *
+ * `.mdl-switch__*` reads NO --jf- variables at all (emby-toggle.scss:45,79,
+ * 108-109): the checked track is rgba(0,164,220,.5), the checked knob is
+ * #00a4dc and the focus helper is rgba(0,164,220,.26). §7.2's "Toggles and
+ * sliders carry no #00a4dc" bullet is decided here.
+ *
+ * §3.15: track 36x20 --jflix-surface-5, checked --jflix-success; knob 16px
+ * white, 16px of travel, 160ms. D2 — the knob travels with `left`, which is
+ * the property stock transitions and sets; a transform would leave stock's
+ * `left:1.466em` in place and the knob would jump AND slide.
+ * -------------------------------------------------------------------------- */
+
+.mdl-switch__trackContainer {
+    width: 36px;
+    height: 20px;
+    flex-shrink: 0;
+}
+
+.mdl-switch__track {
+    height: 20px;
+    background: var(--jflix-surface-5);
+    border-radius: var(--jflix-radius-pill);
+    transition: background-color 160ms var(--jflix-ease-exit);
+}
+
+/* Knob. Stock ships a three-layer Material shadow at REST, which §7.1 forbids;
+   `box-shadow:none` here is the fix, and the focus ring below is the only
+   shadow this control ever carries. 2px inset on all sides of the 20px track. */
+.mdl-switch__thumb {
+    top: 2px;
+    width: 16px;
+    height: 16px;
+    background: var(--jflix-btn-primary-bg);
+    box-shadow: none;
+    transition-duration: 160ms;
+    transition-property: left;
+    transition-timing-function: var(--jflix-ease-enter);
+}
+
+/* Stock writes the rest position as `[dir="ltr"] .mdl-switch__thumb{left:0}`
+   at (0,2,0), so both directions are needed to move it to the 2px inset. */
+[dir="ltr"] .mdl-switch__thumb {
+    left: 2px;
+}
+
+[dir="rtl"] .mdl-switch__thumb {
+    right: 2px;
+}
+
+/* CHECKED track — (0,4,0), matching emby-toggle.scss:45 exactly. */
+.mdl-switch__input:checked + .mdl-switch__label + .mdl-switch__trackContainer > .mdl-switch__track {
+    background: var(--jflix-success);
+}
+
+/* CHECKED knob — (0,4,0), matching emby-toggle.scss:79. 36 - 2 - 16 = 18px,
+   i.e. the 16px of travel §3.15 asks for. The knob stays white on the green
+   track: white on --jflix-success is a 10.1:1 pairing and the knob is the
+   element that carries the position channel. */
+.mdl-switch__input:checked + .mdl-switch__label + .mdl-switch__trackContainer > .mdl-switch__thumb {
+    left: 18px;
+    background: var(--jflix-btn-primary-bg);
+    box-shadow: none;
+}
+
+/* The focus helper is a 0.6em dot inside the knob whose box-shadow stock grows
+   into a blue halo. Both stock rules are killed at their own depth ((0,4,0)
+   and (0,5,0)) and the ring is drawn on the knob instead, where it follows the
+   circle. The 1x1... 0x0 input cannot carry a visible ring itself. */
+.mdl-switch__input:focus + .mdl-switch__label + .mdl-switch__trackContainer .mdl-switch__focus-helper {
+    box-shadow: none;
+    background-color: transparent;
+}
+
+.mdl-switch__input:checked:focus + .mdl-switch__label + .mdl-switch__trackContainer .mdl-switch__focus-helper {
+    box-shadow: none;
+    background-color: transparent;
+}
+
+.mdl-switch__input:focus-visible + .mdl-switch__label + .mdl-switch__trackContainer > .mdl-switch__thumb {
+    box-shadow: var(--jflix-focus-ring);
+}
+
+html.layout-tv .mdl-switch__input:focus + .mdl-switch__label + .mdl-switch__trackContainer > .mdl-switch__thumb {
+    box-shadow: var(--jflix-focus-ring);
+}
+
+.mdl-switch__input[disabled] + .mdl-switch__label + .mdl-switch__trackContainer > .mdl-switch__track {
+    background: rgba(255, 255, 255, .04);
+}
+
+.mdl-switch__input[disabled] + .mdl-switch__label + .mdl-switch__trackContainer > .mdl-switch__thumb {
+    background: var(--jflix-text-disabled);
+    box-shadow: none;
+}
+
+.mdl-switch__label {
+    font: var(--jflix-type-body);
+    color: var(--jflix-text-primary);
+}
+
+/* MUI switches (4 call sites, e.g. "Enable splash screen" on
+   #/dashboard/branding). Same recipe: white knob, --jflix-surface-5 track,
+   --jflix-success when checked. MUI's checked pair is
+   `.MuiSwitch-colorPrimary.Mui-checked` (0,2,0) and
+   `.MuiSwitch-colorPrimary.Mui-checked + .MuiSwitch-track` (0,3,0) — both are
+   primary.main, i.e. the accent red, through the bridge. */
+.MuiSwitch-thumb {
+    background-color: var(--jflix-btn-primary-bg);
+    box-shadow: none;
+}
+
+.MuiSwitch-track {
+    background-color: var(--jflix-surface-5);
+    opacity: 1;
+}
+
+.MuiSwitch-colorPrimary.Mui-checked + .MuiSwitch-track {
+    background-color: var(--jflix-success);
+    opacity: 1;
+}
+
+.MuiSwitch-switchBase.Mui-focusVisible .MuiSwitch-thumb {
+    box-shadow: var(--jflix-focus-ring);
+}
+
+.MuiSwitch-switchBase.Mui-disabled .MuiSwitch-thumb {
+    background-color: var(--jflix-text-disabled);
+}
+
+/* ----------------------------------------------------------------------------
+ * 8. Sliders (`.mdl-slider*`)
+ *
+ * Six hard-coded #00a4dc (emby-slider.scss:8,61,81,101,182,275) plus the
+ * `rgba(255,255,255,.3)` track and the `#282828` bubble. This module owns the
+ * GENERIC slider (settings pages, volume). §3.16 gives the player's scrubber
+ * the accent fill and its own geometry; 70-player.css sorts after this file, so
+ * a scoped `.videoOsdBottom .mdl-slider-background-lower{…}` there overrides
+ * everything below without touching this file.
+ *
+ * §3.15: track 4px, fill white (accent only in the player), knob 12 -> 16px,
+ * ring on focus. ::-webkit-slider-thumb and ::-moz-range-thumb are ALWAYS two
+ * rules — one unknown pseudo-element kills a whole selector list.
+ * -------------------------------------------------------------------------- */
+
+.mdl-slider {
+    color: var(--jflix-text-primary);
+}
+
+/* Track. `.mdl-slider-background-flex` is (0,1,0). D4 — the literal is §3.15's
+   and is correct on dark (over surface-0 it composites to rgb(73,73,73), and
+   white on that is 8.9:1); the light theme gets --jflix-surface-5 below. */
+.mdl-slider-background-flex {
+    height: 4px;
+    margin-top: -2px;
+    background: rgba(255, 255, 255, .28);
+    border-radius: var(--jflix-radius-xs);
+}
+
+html[data-theme="light"] .mdl-slider-background-flex {
+    background: var(--jflix-surface-5);
+}
+
+/* Played portion. `width`/`left` are inline and JS-owned — colour only. */
+.mdl-slider-background-lower {
+    background-color: var(--jflix-text-primary);
+}
+
+/* Buffered / upper portion, stock rgba(255,255,255,.4). */
+.mdl-slider-background-upper {
+    background: rgba(255, 255, 255, .22);
+}
+
+/* Knob, 12px at rest. Two rules, never a list. */
+.mdl-slider::-webkit-slider-thumb {
+    width: 12px;
+    height: 12px;
+    background: var(--jflix-text-primary);
+    transition: transform var(--jflix-dur-fast) var(--jflix-ease-enter);
+}
+
+.mdl-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    background: var(--jflix-text-primary);
+    transition: transform var(--jflix-dur-fast) var(--jflix-ease-enter);
+}
+
+/* 12 -> 16px is scale(1.3333); stock's hover rules say 1.3 (= 15.6px) and are
+   (0,2,0), so they are restated rather than left to round. */
+.mdl-slider-hoverthumb:hover::-webkit-slider-thumb {
+    transform: scale(1.3333);
+}
+
+.mdl-slider-hoverthumb:hover::-moz-range-thumb {
+    transform: scale(1.3333);
+}
+
+/* Focus. 10-global.css §5 puts the ring on `input:focus-visible` at (0,1,1),
+   which on a range input draws a white rectangle around the whole 100%-wide
+   track. (0,2,0) suppresses that and the ring is drawn on the knob instead —
+   where it follows the circle. html.layout-tv's rule in 10-global.css is
+   (0,2,2) and deliberately still wins: at 3m the full-width ring is the
+   readable one. */
+.mdl-slider:focus-visible {
+    box-shadow: none;
+}
+
+.mdl-slider:focus-visible::-webkit-slider-thumb {
+    box-shadow: var(--jflix-focus-ring);
+    transform: scale(1.3333);
+}
+
+.mdl-slider:focus-visible::-moz-range-thumb {
+    box-shadow: var(--jflix-focus-ring);
+    transform: scale(1.3333);
+}
+
+/* Chapter / progress ticks. `.sliderMarker.watched` is (0,2,0) and hard-codes
+   #00a4dc; watch progress is one of §2.3's five accent slots. */
+.sliderMarker.watched {
+    background-color: var(--jflix-accent);
+}
+
+.sliderMarker.unwatched {
+    background-color: rgba(255, 255, 255, .3);
+}
+
+/* The scrub bubble hard-codes #282828 (emby-slider.scss:228). It is a floating
+   layer, so §2.11's elevation is allowed on it at rest. */
+.sliderBubble {
+    background: var(--jflix-surface-3);
+    color: var(--jflix-text-primary);
+    border-radius: var(--jflix-radius-md);
+    box-shadow: var(--jflix-elev-2);
+    font: var(--jflix-type-body-sm);
+}
+
+/* §5.2's "4px visual, 20px hit" is ALREADY satisfied and needs no rule here:
+   the hit target is the `<input type=range>`, which stock sizes at `height:150%`
+   (emby-slider.scss:4) — measured 63px tall on #/mypreferencessubtitles, over a
+   4px visual track. A transparent ::before on the background container would be
+   `pointer-events:none` anyway (the bars below it are painted, not clickable),
+   so it would add nothing. Stated here so the next reader does not "fix" it. */
+
+/* ----------------------------------------------------------------------------
+ * 9. Legacy dialogs (`.dialog`, `.formDialog*`)
+ *
+ * `.dialog` takes --jf-palette-background-default (the PAGE colour) from
+ * _theme.scss:139-141; §3.15 puts dialogs on --jflix-surface-3 so they separate
+ * from the page without a border. `.formDialogHeader`/`.formDialogFooter`
+ * hard-code #202020 with no var() (LIST 1) and are repainted to the dialog's
+ * own surface so the chrome reads as one sheet instead of three bands.
+ * -------------------------------------------------------------------------- */
+
+.dialog {
+    background-color: var(--jflix-surface-3);
+    color: var(--jflix-text-primary);
+    border-radius: var(--jflix-radius-md);
+    box-shadow: var(--jflix-elev-4);
+}
+
+/* §3.15's 560px cap applies only to dialogs the app has NOT sized itself.
+   `.dialog-fixedSize` / `.dialog-fullscreen` are JS decisions (the metadata
+   editor, the New Collection form) and stock already forces them full-bleed
+   with six `!important`s under 80em — capping their width would break the
+   absolutely positioned `.formDialogFooter` inside them. (0,3,0). */
+.dialog:not(.dialog-fixedSize):not(.dialog-fullscreen) {
+    max-width: 560px;
+}
+
+/* The library filter panel forces `border-radius:0 !important` and
+   `max-width:none !important` (filterdialog/style.scss:1-11) — measured live on
+   legacy-desktop #/movies -> .btnFilter, which rendered square corners against
+   every other rounded dialog. Stock used !important on this exact property, so
+   matching it is allowed (§0.2 rule 3); the max-width is deliberately left
+   alone because that panel sizes itself in em and is pinned top/bottom. */
+.dialog.dynamicFilterDialog {
+    border-radius: var(--jflix-radius-md) !important;
+}
+
+/* Metadata editors get 720px (§3.15). */
+.dialog.metadataEditorDialog,
+.dialog.subtitleEditorDialog {
+    max-width: 720px;
+}
+
+/* Backdrop. Stock animates `opacity` on a `#000` sheet, so the alpha is set
+   through the opacity it already transitions rather than by swapping the
+   colour — the result is exactly --jflix-scrim-modal (rgba(0,0,0,.72)).
+   `backdrop-filter` is NOT applied: §2.11 gates it on
+   (hover:hover) and (pointer:fine) + html:not(.layout-tv), and the gated
+   version lives at the end of this section. */
+.dialogBackdropOpened {
+    opacity: .72;
+}
+
+.formDialogHeader:not(.formDialogHeader-clear),
+.formDialogFooter:not(.formDialogFooter-clear) {
+    background-color: var(--jflix-surface-3);
+}
+
+.formDialogHeader {
+    padding: 16px 16px 8px;
+    gap: 8px;
+}
+
+.formDialogHeaderTitle {
+    font: var(--jflix-type-h2);
+    letter-spacing: -0.012em;
+    color: var(--jflix-text-primary);
+}
+
+/* §3.15: actions right-aligned, gap 8, at --jflix-control-h-lg. Stock centres
+   them and gives every item `margin:.5em !important` (formdialog.scss:93-97) —
+   matched with !important because stock used it on this property. */
+.formDialogFooter {
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 16px;
+}
+
+.formDialogFooterItem {
+    margin: 0 !important;
+    min-height: var(--jflix-control-h-lg);
+}
+
+/* The vertical variant is a stacked, centred button column (mobile action
+   confirmations). It must keep centring, so it is restated AFTER the rule
+   above — equal specificity, later wins. */
+.formDialogFooter-vertical {
+    justify-content: center;
+}
+
+.formDialogFooterItem-vertical {
+    margin: 8px 0 !important;
+}
+
+/* §3.15 bottom sheet: below 600px a dialog is full width, rounded at the top
+   only, with a grab handle and a 88vh cap. `.dialog-fixedSize` and
+   `-fullscreen` are excluded for the same reason as the width cap, and the
+   actionSheet is excluded because stock already gives it its own max-height
+   and centring. `.dialogContainer` is the flex parent that centres the sheet. */
+@media (max-width: 599px) {
+    .dialogContainer {
+        align-items: flex-end;
+    }
+
+    .dialog:not(.dialog-fixedSize):not(.dialog-fullscreen):not(.actionSheet) {
+        width: 100%;
+        max-width: none;
+        max-height: 88vh;
+        border-radius: var(--jflix-radius-lg) var(--jflix-radius-lg) 0 0;
+        padding-top: 12px;
+        animation: none;
+    }
+
+    .dialog:not(.dialog-fixedSize):not(.dialog-fullscreen):not(.actionSheet)::before {
+        content: "";
+        position: absolute;
+        top: 8px;
+        left: 50%;
+        margin-left: -18px;
+        width: 36px;
+        height: 4px;
+        border-radius: var(--jflix-radius-pill);
+        background: rgba(255, 255, 255, .3);
+    }
+}
+
+/* ----------------------------------------------------------------------------
+ * 10. MUI dialogs, menus, popovers
+ *
+ * The paper surface and the elevation already arrive through the bridge
+ * (--jf-palette-background-paper -> surface-3, --jf-shadows-8/16/24 -> elev-2 /
+ * elev-4, --jf-overlays-* -> none). Only geometry and the row states are left.
+ * -------------------------------------------------------------------------- */
+
+/* MUI's backdrop is rgba(0,0,0,.5). The `:not(.MuiBackdrop-invisible)` guard is
+   LOAD-BEARING: menus and popovers mount an invisible backdrop, and a bare
+   `.MuiBackdrop-root{background-color:…}` at (0,1,0) placed after MUI's
+   `.MuiBackdrop-invisible{background-color:transparent}` would dim the whole
+   page behind every dropdown. */
+.MuiBackdrop-root:not(.MuiBackdrop-invisible) {
+    background-color: var(--jflix-scrim-modal);
+}
+
+.MuiDialog-paper {
+    background-color: var(--jflix-surface-3);
+    background-image: none;
+    border-radius: var(--jflix-radius-md);
+    max-width: 560px;
+}
+
+.MuiDialogTitle-root {
+    font: var(--jflix-type-h2);
+    letter-spacing: -0.012em;
+    color: var(--jflix-text-primary);
+    padding: 24px 24px 16px;
+}
+
+.MuiDialogContent-root {
+    padding: 0 24px 8px;
+    font: var(--jflix-type-body);
+    color: var(--jflix-text-secondary);
+}
+
+.MuiDialogActions-root {
+    padding: 16px 24px 24px;
+    gap: 8px;
+}
+
+@media (max-width: 599px) {
+    .MuiDialog-paper {
+        width: 100%;
+        max-width: none;
+        max-height: 88vh;
+        margin: 0;
+        align-self: flex-end;
+        border-radius: var(--jflix-radius-lg) var(--jflix-radius-lg) 0 0;
+    }
+}
+
+/* Menus and popovers: surface-3, radius-md, elev-2, 1px hairline (§3.15). */
+.MuiMenu-paper,
+.MuiPopover-paper {
+    background-color: var(--jflix-surface-3);
+    background-image: none;
+    border: 1px solid var(--jflix-line-hairline);
+    border-radius: var(--jflix-radius-md);
+}
+
+.MuiMenu-list,
+.MuiList-root.MuiMenu-list {
+    padding: 4px 0;
+}
+
+/* Item height 40 / 48 touch / 56 TV comes straight from --jflix-control-h. */
+.MuiMenuItem-root {
+    min-height: var(--jflix-control-h);
+    padding: 0 16px;
+    font: var(--jflix-type-body);
+    color: var(--jflix-text-primary);
+    transition: background-color var(--jflix-dur-fast) var(--jflix-ease-exit);
+}
+
+.MuiMenuItem-root:hover {
+    background-color: var(--jflix-overlay-hover);
+}
+
+/* Selected carries THREE channels (§5.3): the wash, a heavier label and a 3px
+   accent bar. The bar is a border with compensating padding so the label does
+   not shift, and it is written per direction because `border-left` is physical
+   (logical properties fail on webOS 22 / Tizen 2021). An "active nav indicator"
+   is one of §2.3's five accent slots. */
+.MuiMenuItem-root.Mui-selected {
+    background-color: var(--jflix-overlay-selected);
+    font-weight: 600;
+}
+
+[dir="ltr"] .MuiMenuItem-root.Mui-selected {
+    border-left: 3px solid var(--jflix-accent);
+    padding-left: 13px;
+}
+
+[dir="rtl"] .MuiMenuItem-root.Mui-selected {
+    border-right: 3px solid var(--jflix-accent);
+    padding-right: 13px;
+}
+
+.MuiMenuItem-root.Mui-selected:hover {
+    background-color: var(--jflix-overlay-press);
+}
+
+/* §3.15: "focus-visible = hover state plus the ring" — menus are keyboard
+   driven and colour alone is not enough. The ring is inset so it is not
+   clipped by the paper's own border-radius + overflow. */
+.MuiMenuItem-root.Mui-focusVisible {
+    background-color: var(--jflix-overlay-hover);
+    box-shadow: inset 0 0 0 2px var(--jflix-line-invert);
+}
+
+.MuiListItemIcon-root {
+    color: var(--jflix-text-secondary);
+}
+
+/* ----------------------------------------------------------------------------
+ * 11. Legacy action sheet
+ *
+ * `.actionSheet` is a `.dialog` variant, so everything in §9 already applies;
+ * only its own `border-radius:.1em !important` (actionSheet.scss:7) has to be
+ * matched. Its rows are `.listItem.listItem-button.actionSheetMenuItem`, and
+ * `.listItem` belongs to the list-view module — only the actionSheet-specific
+ * class is touched here.
+ * -------------------------------------------------------------------------- */
+
+.actionSheet {
+    border-radius: var(--jflix-radius-md) !important;
+    border: 1px solid var(--jflix-line-hairline);
+}
+
+.actionsheet-fullscreen {
+    border-radius: 0 !important;
+}
+
+.actionSheetMenuItem {
+    min-height: var(--jflix-control-h);
+    font: var(--jflix-type-body);
+    color: var(--jflix-text-primary);
+    transition: background-color var(--jflix-dur-fast) var(--jflix-ease-exit);
+}
+
+.actionSheetMenuItem:hover {
+    background-color: var(--jflix-overlay-hover);
+}
+
+.actionSheetMenuItem:focus-visible {
+    background-color: var(--jflix-overlay-hover);
+    box-shadow: inset 0 0 0 2px var(--jflix-line-invert);
+}
+
+.actionSheetTitle {
+    font: var(--jflix-type-h3);
+    color: var(--jflix-text-primary);
+}
+
+.actionSheetText {
+    font: var(--jflix-type-body);
+    color: var(--jflix-text-secondary);
+}
+
+.actionsheetDivider {
+    background-color: var(--jflix-line-hairline);
+}
+
+/* ----------------------------------------------------------------------------
+ * 12. Snackbars / toasts
+ * The colours arrive through --jf-palette-SnackbarContent-bg/-color; stock
+ * `.toast` (toast.scss:30-42) adds its own radius, a shadow and `font-size:110%`.
+ * -------------------------------------------------------------------------- */
+
+.toast,
+.MuiSnackbarContent-root {
+    min-height: 48px;
+    padding: 12px 16px;
+    font: var(--jflix-type-body);
+    border-radius: var(--jflix-radius-md);
+    box-shadow: var(--jflix-elev-2);
+    background-color: var(--jflix-surface-3);
+    color: var(--jflix-text-primary);
+}
+
+.MuiSnackbarContent-action .MuiButton-root,
+.MuiSnackbarContent-action .MuiButton-textPrimary {
+    color: var(--jflix-info);
+}
+
+/* ----------------------------------------------------------------------------
+ * 13. Tooltips (§3.15: surface-4, radius-xs, body-sm, 6/10 padding)
+ * Suppressed on TV — a tooltip cannot be dismissed with a D-pad and every call
+ * site already carries a localized title/aria-label, so nothing is lost (§5.3).
+ * -------------------------------------------------------------------------- */
+
+.MuiTooltip-tooltip {
+    background-color: var(--jflix-surface-4);
+    color: var(--jflix-text-primary);
+    border-radius: var(--jflix-radius-xs);
+    font: var(--jflix-type-body-sm);
+    padding: 6px 10px;
+    box-shadow: var(--jflix-elev-2);
+}
+
+.MuiTooltip-arrow {
+    color: var(--jflix-surface-4);
+}
+
+html.layout-tv .MuiTooltip-popper {
+    display: none;
+}
+
+/* ----------------------------------------------------------------------------
+ * 14. Chips
+ * -------------------------------------------------------------------------- */
+
+.MuiChip-root {
+    height: var(--jflix-control-h-sm);
+    background-color: var(--jflix-surface-4);
+    border: 1px solid var(--jflix-line-subtle);
+    border-radius: var(--jflix-radius-pill);
+    color: var(--jflix-text-primary);
+    font: var(--jflix-type-body-sm);
+}
+
+.MuiChip-root.MuiChip-clickable:hover {
+    background-color: var(--jflix-surface-5);
+}
+
+.MuiChip-deleteIcon {
+    color: var(--jflix-text-tertiary);
+}
+
+/* ----------------------------------------------------------------------------
+ * 15. Panel surfaces and banners
+ *
+ * `.paperList`, `.visualCardBox`, `.collapseContent` and the two formDialog
+ * bands compile to the literal `#202020` with NO var() (_theme.scss:221-248,
+ * LIST 1 / gotcha G3), so a variable cannot reach them. §7.1 greps the rendered
+ * page for `#202020` and expects zero visible hits.
+ *
+ * Values: §3.18 calls these "panels" and puts panels on --jflix-surface-1 with
+ * hairline rules and no elevation. `.visualCardBox` is the exception — it is a
+ * CARD plate (the dashboard user/device tiles), which §2.1 assigns to
+ * --jflix-surface-2. The formDialog bands are in §9 above because they belong
+ * to the dialog sheet, not to a panel.
+ * -------------------------------------------------------------------------- */
+
+.paperList,
+.collapseContent {
+    background-color: var(--jflix-surface-1);
+    border-radius: var(--jflix-radius-sm);
+    box-shadow: none;
+}
+
+.visualCardBox {
+    background-color: var(--jflix-surface-2);
+    box-shadow: none;
+}
+
+/* §3.15's info banner: the bridge supplies the fill (#1F2A38) and the text
+   (#CFE3FF) through --jf-palette-Alert-infoFilled*; the 3px leading bar is the
+   second channel and has to be written per direction. */
+.infoBanner {
+    border-radius: var(--jflix-radius-sm);
+    padding: 12px 16px;
+    font: var(--jflix-type-body);
+}
+
+[dir="ltr"] .infoBanner {
+    border-left: 3px solid var(--jflix-info);
+}
+
+[dir="rtl"] .infoBanner {
+    border-right: 3px solid var(--jflix-info);
+}
+
+/* MUI alerts (22 call sites, mostly dashboard). Only the geometry and the info
+   severity are claimed: --jf-palette-info-main / -warning-main / -success-main
+   are LIST 3 (unmapped by §2.16), so the other severities keep MUI's own
+   colours until the bridge covers them.
+   CROSS-MODULE: 00-tokens.css should map -info-main -> --jflix-info,
+   -success-main -> --jflix-success and -warning-main -> --jflix-warning. */
+.MuiAlert-root {
+    border-radius: var(--jflix-radius-sm);
+    font: var(--jflix-type-body);
+}
+
+.MuiAlert-standardInfo {
+    background-color: #1F2A38;
+    color: #CFE3FF;
+}
+
+.MuiAlert-standardInfo .MuiAlert-icon {
+    color: var(--jflix-info);
+}
+
+/* ----------------------------------------------------------------------------
+ * 16. TV (§4.5, §7.2 "tv: field height 56, focus paints the whole field")
+ *
+ * html.layout-tv already sets --jflix-control-h:56px in 00-tokens.css, so every
+ * height above follows automatically; what TV adds is the FILL on focus — a
+ * 2px border is invisible at 3 m — plus the TV ring, which arrives through
+ * --jflix-focus-ring being re-pointed at --jflix-focus-ring-tv.
+ * :focus, not :focus-visible: the app drives focus programmatically there.
+ * -------------------------------------------------------------------------- */
+
+html.layout-tv .emby-input:focus,
+html.layout-tv .emby-textarea:focus,
+html.layout-tv .emby-select:focus,
+html.layout-tv .emby-select-withcolor:focus {
+    background-color: var(--jflix-surface-3);
+    border-color: var(--jflix-line-invert);
+}
+
+html.layout-tv .MuiInputBase-root.MuiFilledInput-root.Mui-focused {
+    background-color: var(--jflix-surface-3);
+}
+
+/* Stock `.emby-select-tv-withcolor:focus` forces the whole field to
+   secondary-main (now #FFF) with `!important` on both properties
+   (_theme.scss:429-431) — white text on a white field. Matched at (0,2,0) with
+   the same !important, per §0.2 rule 3. */
+html.layout-tv .emby-select-tv-withcolor:focus {
+    background-color: var(--jflix-surface-3) !important;
+    color: var(--jflix-text-primary) !important;
+}
+
+/* §5.2: 48px minimum focusable height on TV, 16px apart. */
+html.layout-tv .MuiMenuItem-root,
+html.layout-tv .actionSheetMenuItem {
+    min-height: 56px;
+}
+
+/* ----------------------------------------------------------------------------
+ * 17. Gated enhancement — dialog backdrop blur
+ * §2.11: `backdrop-filter` only under (hover:hover) and (pointer:fine) AND
+ * html:not(.layout-tv). Its own rule so an engine without it keeps everything
+ * else (§0.2 rule 9, §1.8).
+ * -------------------------------------------------------------------------- */
+
+@media (hover: hover) and (pointer: fine) {
+    html:not(.layout-tv) .dialogBackdropOpened {
+        backdrop-filter: var(--jflix-blur);
+    }
+
+    html:not(.layout-tv) .MuiBackdrop-root:not(.MuiBackdrop-invisible) {
+        backdrop-filter: var(--jflix-blur);
+    }
+}

@@ -1,0 +1,1007 @@
+/* ============================================================================
+ * JellyFlix — 50-library-search.css
+ * §3.12 library grid + filter/sort/view chrome, count chip, pagination, the A–Z
+ * rail · §3.13 search · the genres/suggestions/upcoming section views ·
+ * collections/playlists/boxsets grids · the list-view rows of library list mode.
+ *
+ * Scope discipline — this file owns the LIBRARY CONTEXT only:
+ *   - tile geometry (width, aspect, tile gap, caption typography, hover overlay,
+ *     indicators) belongs to the cards module (§2.9/§3.5–3.7). This file only
+ *     adds what the GRID context needs on top of it.
+ *   - h2.sectionTitle / row arrows / row gaps belong to the home-rows module
+ *     (§3.4); the genres, suggestions, upcoming and search views reuse that
+ *     markup verbatim and are deliberately NOT restyled here.
+ *   - the generic .MuiMenu-paper / .MuiPopover-paper / .dialog surfaces belong
+ *     to the forms-dialogs module (§3.15); only the library popovers' own
+ *     innards are claimed here, by their stable ids.
+ *   - the app bar's height, background and scroll state belong to the shell
+ *     module (§3.1/§3.2). This file styles the SECOND toolbar row only.
+ *
+ * Specificity reminder: Custom CSS is the last sheet in the document, so a tie
+ * is won here; emotion `sx` rules are single-class (0,1,0) and lose to any
+ * (0,2,0) compound.
+ *
+ * KNOWN DEVIATIONS AND HAND-OFFS (details at each site):
+ *   §1  --jflix-lib-toolbar-h is a NEW module-local length. §2.8 has no token
+ *       for the library toolbar row and the A–Z rail's `top` needs one.
+ *   §2  Play All / Shuffle are painted --jflix-surface-4, not the white Primary
+ *       that 10-global.css gives every .MuiButton-containedPrimary. Reasoning
+ *       at the rule.
+ *   §4  The rail's translucent plate is rgba(0,0,0,.35) exactly as §3.12 gives
+ *       it; it only reads as a rail because the grid is held clear of it (§4d).
+ *   §5  Grid hover zoom is applied by REDECLARING --jflix-zoom-row inside the
+ *       grid, not by writing a transform — the transform belongs to the cards
+ *       module and two files writing one would compound to 1.12 × 1.06.
+ *   §6  .libraryPage's padding-top is recomputed for the LEGACY/TV layouts only;
+ *       modern already zeroes it and uses the measured app-bar spacer.
+ *   §7  .listItemImageButton:hover and .listItemIcon are fixed UNSCOPED — they
+ *       are two of §2.16's hard-coded #00a4dc survivors and list rows appear on
+ *       the details page too.
+ * ========================================================================== */
+
+/* ----------------------------------------------------------------------------
+ * 1. Module-local lengths
+ *
+ * --jflix-lib-toolbar-h — the height of the modern library toolbar (the second
+ * .MuiToolbar-root inside header.MuiAppBar-root). §2.8 gives --jflix-bar-h-2
+ * (48) for it, which is right while the row fits on one line; below MUI's
+ * `sm` breakpoint (600px) LibraryToolbar.tsx:58 puts the button cluster on its
+ * own line (`flexBasis:100%`, measured live: the row becomes 101px tall on a
+ * 390px phone). The A–Z rail's `top` is a hard-coded MUI `sx` value and has to
+ * be re-derived from the real bar height (§3.1 obligation 1), so that height
+ * needs a NAME, not a magic number repeated in three rules.
+ *   desktop/tablet  = --jflix-bar-h-2 (48)
+ *   phone (<600px)  = 104  (40 title row + 44 button row + 2×4 padding, then
+ *                          enforced with min-height in §2 so the two agree)
+ * SPEC: add --jflix-lib-toolbar-h to §2.8 next to --jflix-bar-h-2.
+ *
+ * --jflix-rail-w / --jflix-rail-clear — §3.12 fixes the rail at 28px wide.
+ * "Clear" is what the grid must keep free on that edge: the rail is
+ * position:fixed and overlays the page, so on a phone (gutter 16px) the last
+ * column would otherwise sit under the letters. It is NOT --jflix-gutter — see
+ * the note in 10-global.css §7.2 and LIST 1 in 00-tokens.css.
+ * -------------------------------------------------------------------------- */
+
+:root {
+    --jflix-lib-toolbar-h: var(--jflix-bar-h-2);
+    --jflix-rail-w: 28px;
+    --jflix-rail-inset: var(--jflix-space-2);   /* distance from the page edge */
+    --jflix-rail-clear: 44px;                   /* 28 rail + 2 × 8 inset       */
+}
+
+@media (max-width: 599px) {
+    :root {
+        --jflix-lib-toolbar-h: 104px;
+    }
+}
+
+/* TV letters are one step larger (§2.18 re-declares every size in px), so the
+   rail and its clearance grow with them. The inset becomes 2% because §2.18
+   requires a 5% overscan inset on full-bleed surfaces and the rail is
+   position:fixed against the physical screen edge — at 8px it sat inside the
+   overscan band on the tv profile (measured: rail at x≈1890 of 1920, with the
+   grid's own 5% gutter ending at 1824). 2% = 38px at 1920, which keeps the
+   letters clear of the bezel while still leaving 58px between the rail and the
+   last column. html.layout-tv is (0,1,1) and is declared after :root, exactly
+   like the TV column in 00-tokens.css. */
+html.layout-tv {
+    --jflix-rail-w: 36px;
+    --jflix-rail-inset: 2%;
+    /* = the TV gutter, so max() below is a no-op and the grid stays symmetric.
+       It does not need to be bigger: at 1920 the rail occupies 38–74px from the
+       right edge while the 5% gutter already ends 96px in. Measured 8% first,
+       which pushed the TV grid's right edge 58px inside its left one. */
+    --jflix-rail-clear: 5%;
+}
+
+/* ----------------------------------------------------------------------------
+ * 2. Modern library toolbar — the second row of header.MuiAppBar-root
+ *
+ * Anchor: `header.MuiAppBar-root > .MuiToolbar-root:nth-child(2)` (0,3,1).
+ * docs/dom-map/library-search.md offers
+ * `.MuiToolbar-root:has(button[aria-controls="library-view-menu"])` as "the only
+ * reliable anchor", but :has() may only be an ENHANCEMENT (house rule 2) and
+ * the toolbar's geometry is load-bearing (the app-bar spacer and the A–Z rail
+ * both follow it). :nth-child(2) is plain CSS, carries no emotion hash, and was
+ * verified live on modern-desktop and modern-mobile: the AppBar's only element
+ * children are toolbar 1 (app nav) and toolbar 2 (library), and toolbar 2 is
+ * absent on every non-library route, so the selector simply matches nothing
+ * there.
+ *
+ * The height is asserted at (0,3,1) so it survives §3.1's
+ * `.MuiToolbar-root.MuiToolbar-dense{min-height: var(--jflix-bar-h)}` (0,2,0),
+ * which must raise toolbar 1 to 64px WITHOUT dragging this row with it —
+ * §3.12 keeps the library row at --jflix-bar-h-2.
+ * -------------------------------------------------------------------------- */
+
+/* No vertical padding on purpose: the row's border box has to be EXACTLY
+   --jflix-lib-toolbar-h + the 1px rule, because the A–Z rail's `top` (§4c) is
+   re-derived from it and the app-bar spacer is measured from it. Padding here
+   put the row at 57px against a declared 48 and pushed the rail 9px out of
+   register (measured). MuiToolbar already centres its children. */
+header.MuiAppBar-root > .MuiToolbar-root:nth-child(2) {
+    min-height: var(--jflix-lib-toolbar-h);
+    border-bottom: 1px solid var(--jflix-line-hairline);
+}
+
+/* §3.12's "--jflix-surface-1 when stuck". In the modern layout this row is
+   always position:fixed, so "stuck" is read as the state the app already
+   tracks: MUI swaps MuiAppBar-colorTransparent ⇄ MuiAppBar-colorDefault at
+   scrollTop > 0 (OffsetAppBar.tsx:30-33). At scroll 0 the row stays
+   transparent so it does not tear a lighter band across the shell's
+   transparent bar; once the page scrolls it becomes the surface-1 sub-toolbar
+   §3.12 asks for. (0,3,1) beats MUI's emotion rule. */
+header.MuiAppBar-root.MuiAppBar-colorDefault > .MuiToolbar-root:nth-child(2) {
+    background-color: var(--jflix-surface-1);
+}
+
+/* --- The "Filmy ▾" tab button (the page title) ---------------------------- */
+/* padding-left: 0 puts the label itself on --jflix-gutter — the same line as
+   the first tile of the grid below it and the wordmark above it (§1.3). The
+   button keeps its full hit area to the right of that line. */
+header.MuiAppBar-root > .MuiToolbar-root:nth-child(2) > button[aria-controls="library-view-menu"] {
+    min-height: var(--jflix-control-h);
+    padding-left: 0;
+    padding-right: var(--jflix-space-2);
+    color: var(--jflix-text-primary);
+    background-color: transparent;
+    border-radius: var(--jflix-radius-sm);
+    transition: color var(--jflix-dur-fast) var(--jflix-ease-exit);
+}
+
+header.MuiAppBar-root > .MuiToolbar-root:nth-child(2) > button[aria-controls="library-view-menu"]:hover {
+    background-color: transparent;
+    color: var(--jflix-text-secondary);
+}
+
+/* The caret. 10-global.css leaves .MuiButton-endIcon alone, so the margin is
+   MUI's 8px; 4px reads as part of the word, which is what a Netflix-style
+   "Genres ▾" affordance does. */
+header.MuiAppBar-root > .MuiToolbar-root:nth-child(2) > button[aria-controls="library-view-menu"] > .MuiButton-endIcon {
+    margin-left: var(--jflix-space-1);
+    margin-right: 0;
+}
+
+/* --- Count chip ("24" / "1-24 z 24" / "∙") -------------------------------- */
+/* Stock is a 32px MUI chip on rgba(255,255,255,.16). It is not interactive and
+   it is not a filter chip, so §3.7's 32px filter-chip geometry does not apply;
+   it is sized as a label. It is the ONLY "1-24 z 24" indicator in the modern
+   layout (Pagination.tsx) and must never be hidden (§1.6). */
+header.MuiAppBar-root > .MuiToolbar-root:nth-child(2) .MuiChip-root {
+    height: 24px;
+    margin-left: var(--jflix-space-2);
+    background-color: var(--jflix-surface-4);
+    color: var(--jflix-text-secondary);
+    border-radius: var(--jflix-radius-pill);
+}
+
+header.MuiAppBar-root > .MuiToolbar-root:nth-child(2) .MuiChip-label {
+    padding-left: 10px;
+    padding-right: 10px;
+    font: var(--jflix-type-label);
+    letter-spacing: 0.01em;
+    font-variant-numeric: tabular-nums;
+}
+
+/* --- Ghost variant: filter / sort / view / pagination (§3.12) -------------- */
+/* .MuiButton-text catches every text button in the row EXCEPT the contained
+   Play/Shuffle group, which is handled separately below. */
+header.MuiAppBar-root > .MuiToolbar-root:nth-child(2) .MuiButton-text {
+    min-width: var(--jflix-control-h-sm);
+    min-height: var(--jflix-control-h-sm);
+    padding-left: var(--jflix-space-2);
+    padding-right: var(--jflix-space-2);
+    color: var(--jflix-text-secondary);
+    background-color: transparent;
+    border-color: transparent;
+    border-radius: var(--jflix-radius-sm);
+    font: var(--jflix-type-button);
+    letter-spacing: 0.005em;
+    text-transform: none;
+    transition:
+        background-color var(--jflix-dur-fast) var(--jflix-ease-exit),
+        color var(--jflix-dur-fast) var(--jflix-ease-exit);
+}
+
+header.MuiAppBar-root > .MuiToolbar-root:nth-child(2) .MuiButton-text:hover {
+    background-color: var(--jflix-overlay-hover);
+    color: var(--jflix-text-primary);
+}
+
+header.MuiAppBar-root > .MuiToolbar-root:nth-child(2) .MuiButton-text:active {
+    background-color: var(--jflix-overlay-press);
+    transition-duration: 0ms;
+}
+
+/* Pagination's bound buttons are `Mui-disabled`, and MUI's own disabled colour
+   rule is (0,2,0) — the ghost recipe above is (0,4,1) and would have swallowed
+   it, leaving "no previous page" looking identical to "previous page"
+   (§5.3 forbids dropping a state channel). Measured before this rule: the
+   disabled NavigateBefore button still reported rgba(255,255,255,.72). */
+header.MuiAppBar-root > .MuiToolbar-root:nth-child(2) .MuiButton-text.Mui-disabled {
+    color: var(--jflix-text-disabled);
+}
+
+header.MuiAppBar-root > .MuiToolbar-root:nth-child(2) .MuiButton-text.Mui-disabled:hover {
+    background-color: transparent;
+    color: var(--jflix-text-disabled);
+}
+
+/* §5.2 — a 32px control is legal with a fine pointer only. */
+@media (pointer: coarse) {
+    header.MuiAppBar-root > .MuiToolbar-root:nth-child(2) .MuiButton-text {
+        min-width: var(--jflix-touch-min);
+        min-height: var(--jflix-touch-min);
+    }
+}
+
+/* --- Play All / Shuffle ---------------------------------------------------- */
+/* DELIBERATE DEVIATION from 10-global.css §9, recorded because it inverts a
+   foundation rule: `.MuiButton-containedPrimary` is the white Primary there
+   (§0.3 #3), and this group is the only place in the product where that recipe
+   lands on a browse toolbar. §3.12 says every button in this row is the Ghost
+   variant; a 198px white slab is the loudest element on the page and would
+   out-shout the artwork the whole theme is built around (§1.2). §0.3 #3 scopes
+   the white Primary to the *hero* Play button, and §0.3 names the grey fill
+   "glass-grey secondary" — which is exactly what a play-all shortcut on a
+   browse page is. So: the group keeps a filled affordance (it is still the
+   only action in the row) but at --jflix-surface-4, not white, and never blue.
+   Both the MUI per-instance variables and the properties are set, because
+   different MUI versions consume them differently (same technique as §9).
+   SPEC: add this carve-out to §3.12's "Buttons in it are the Ghost variant". */
+header.MuiAppBar-root > .MuiToolbar-root:nth-child(2) .MuiButton-contained {
+    --variant-containedBg: var(--jflix-surface-4);
+    --variant-containedColor: var(--jflix-text-primary);
+
+    min-height: var(--jflix-control-h-sm);
+    background-color: var(--jflix-surface-4);
+    color: var(--jflix-text-primary);
+    box-shadow: none;
+    font: var(--jflix-type-button);
+    letter-spacing: 0.005em;
+    text-transform: none;
+    transition:
+        background-color var(--jflix-dur-fast) var(--jflix-ease-exit),
+        color var(--jflix-dur-fast) var(--jflix-ease-exit);
+}
+
+header.MuiAppBar-root > .MuiToolbar-root:nth-child(2) .MuiButton-contained:hover {
+    background-color: var(--jflix-surface-5);
+    box-shadow: none;
+}
+
+header.MuiAppBar-root > .MuiToolbar-root:nth-child(2) .MuiButton-contained:active {
+    background-color: var(--jflix-surface-5);
+    transform: scale(.98);
+    transition-duration: 0ms;
+}
+
+@media (pointer: coarse) {
+    header.MuiAppBar-root > .MuiToolbar-root:nth-child(2) .MuiButton-contained {
+        min-height: var(--jflix-touch-min);
+    }
+}
+
+/* The group's internal dividers are MUI border-right/left rules; a hairline is
+   the §2.1 value for a rule between two controls. */
+header.MuiAppBar-root > .MuiToolbar-root:nth-child(2) .MuiButtonGroup-grouped {
+    border-color: var(--jflix-line-hairline);
+}
+
+/* First/last radii of a button group (MUI squares the inner edges itself). */
+header.MuiAppBar-root > .MuiToolbar-root:nth-child(2) .MuiButtonGroup-firstButton {
+    border-top-left-radius: var(--jflix-radius-sm);
+    border-bottom-left-radius: var(--jflix-radius-sm);
+}
+
+header.MuiAppBar-root > .MuiToolbar-root:nth-child(2) .MuiButtonGroup-lastButton {
+    border-top-right-radius: var(--jflix-radius-sm);
+    border-bottom-right-radius: var(--jflix-radius-sm);
+}
+
+/* --- "Filters are active" dot --------------------------------------------- */
+/* FilterButton.tsx:193 renders a MuiBadge-dot with color="info", i.e. MUI's
+   blue. It is the same UI primitive as .countIndicator and .filterButtonBubble,
+   both of which 00-tokens.css / 10-global.css §8 already put on the accent, so
+   it follows them rather than surviving as a piece of stock blue (§7.1).
+   .MuiBadge-invisible keeps MUI's scale(0) — no rule here resurrects it. */
+header.MuiAppBar-root > .MuiToolbar-root:nth-child(2) .MuiBadge-badge {
+    background-color: var(--jflix-accent);
+    color: var(--jflix-text-on-accent);
+}
+
+/* ----------------------------------------------------------------------------
+ * 3. The four library popovers
+ * #filter-popover · #sort-popover · #selectview-popover · #library-view-menu
+ *
+ * The paper surface, radius, elevation and item height come from §3.15 and are
+ * the forms-dialogs module's job; what is claimed here is only what these four
+ * carry of their OWN: the filter accordions' hard-coded styled-component
+ * colours (FilterButton.tsx:48,62-66,77) and the "this row is the current one"
+ * state, which the --jf-palette-primary-main bridge otherwise paints
+ * accent-red — forbidden as text on every surface (§2.3).
+ *
+ * #filter-popover's paper has an inline `max-height:50%;width:250px`
+ * (FilterButton.tsx:210-217). Inline styles are unbeatable without !important
+ * and stock did not use !important there, so the width is left alone.
+ * -------------------------------------------------------------------------- */
+
+#filter-popover .MuiAccordion-root {
+    background-color: transparent;
+    background-image: none;
+    border-color: var(--jflix-line-hairline);
+}
+
+#filter-popover .MuiAccordionSummary-root {
+    background-color: var(--jflix-surface-4);
+    min-height: var(--jflix-control-h);
+}
+
+#filter-popover .MuiAccordionSummary-root:hover {
+    background-color: var(--jflix-surface-5);
+}
+
+#filter-popover .MuiAccordionSummary-content p {
+    font: var(--jflix-type-body);
+    color: var(--jflix-text-primary);
+}
+
+/* FilterButton.tsx:77 sets `border-top: 1px solid rgba(0,0,0,.125)` — invisible
+   on a dark surface, which is why the groups read as one undivided list. */
+#filter-popover .MuiAccordionDetails-root {
+    border-top-color: var(--jflix-line-hairline);
+    background-color: transparent;
+}
+
+#filter-popover .MuiFormControlLabel-root {
+    margin-left: 0;
+    margin-right: 0;
+}
+
+/* Selected row in the three menus. §2.5: --jflix-overlay-selected is "always
+   paired with a 3px accent bar, never colour alone", and §5.3 forbids dropping
+   a state channel — so weight is the third. The bar is painted as a
+   background-image stop rather than a border (which would shift the label by
+   3px) or an inset box-shadow (which §7.1 greps for as "a shadow at rest").
+   Two-colour hard stop, not the Images-4 double-position syntax, so webOS 22 /
+   Tizen 2021 parse it. */
+#library-view-menu .MuiMenuItem-root.Mui-selected,
+#sort-popover .MuiMenuItem-root.Mui-selected,
+#selectview-popover .MuiMenuItem-root.Mui-selected {
+    background-color: var(--jflix-overlay-selected);
+    background-image: linear-gradient(90deg, var(--jflix-accent) 3px, transparent 3px);
+    color: var(--jflix-text-primary);
+    font-weight: 600;
+}
+
+[dir="rtl"] #library-view-menu .MuiMenuItem-root.Mui-selected,
+[dir="rtl"] #sort-popover .MuiMenuItem-root.Mui-selected,
+[dir="rtl"] #selectview-popover .MuiMenuItem-root.Mui-selected {
+    background-image: linear-gradient(270deg, var(--jflix-accent) 3px, transparent 3px);
+}
+
+#library-view-menu .MuiMenuItem-root.Mui-selected:hover,
+#sort-popover .MuiMenuItem-root.Mui-selected:hover,
+#selectview-popover .MuiMenuItem-root.Mui-selected:hover {
+    background-color: var(--jflix-overlay-press);
+}
+
+/* The active sort direction / the checked view mode. MUI paints these icons
+   with the palette's primary-main, which the bridge turned accent-red. */
+#sort-popover .MuiListItemIcon-root,
+#selectview-popover .MuiListItemIcon-root {
+    color: var(--jflix-text-primary);
+    min-width: var(--jflix-space-7);
+}
+
+#library-view-menu .MuiMenuItem-root,
+#sort-popover .MuiMenuItem-root,
+#selectview-popover .MuiMenuItem-root {
+    font: var(--jflix-type-body);
+    min-height: var(--jflix-control-h);
+}
+
+/* ----------------------------------------------------------------------------
+ * 4. The A–Z rail (§3.12) — modern .MuiBox-root, legacy/TV .alphaPicker
+ *
+ * "Never display:none it — it is real navigation in a 5000-item library"
+ * (§1.6, §3.12). Both markups are restyled to the same thin translucent rail.
+ *
+ * 4a. the fixed box                4b. the plate + letters
+ * 4c. the `top` re-set (§3.1)      4d. keeping the grid out from under it
+ * -------------------------------------------------------------------------- */
+
+/* 4a — width and edge inset. Both selectors are (0,2,0): the modern box is
+   `div.alphaPicker-fixed-right.MuiBox-root` (emotion sx is (0,1,0)), the legacy
+   /TV one is `div.alphaPicker.alphaPicker-fixed.alphaPicker-fixed-right`, whose
+   stock `[dir] .alphaPicker-fixed-right{right: max(1em, env())}` is also
+   (0,2,0) and loses on source order. env() stays inside max() so a notched
+   phone still gets its inset. */
+.MuiBox-root.alphaPicker-fixed-right,
+.alphaPicker.alphaPicker-fixed-right {
+    width: var(--jflix-rail-w);
+}
+
+[dir="ltr"] .MuiBox-root.alphaPicker-fixed-right,
+[dir="ltr"] .alphaPicker.alphaPicker-fixed-right {
+    right: max(var(--jflix-rail-inset), env(safe-area-inset-right));
+}
+
+[dir="rtl"] .MuiBox-root.alphaPicker-fixed-right,
+[dir="rtl"] .alphaPicker.alphaPicker-fixed-right {
+    left: max(var(--jflix-rail-inset), env(safe-area-inset-left));
+}
+
+/* 4b — the plate. It must hug the letters, not the whole fixed column, or the
+   theme paints a full-height stripe down the right edge of every library page.
+   Modern: the letters live in an inner MuiPaper (measured 19×679 inside a
+   19×984 box), so the Paper is the plate. Legacy/TV: the outer element IS the
+   letter strip (top is auto, only `bottom` is set), so it is its own plate. */
+.alphaPicker-fixed-right .MuiPaper-root {
+    width: 100%;
+    background-color: rgba(0, 0, 0, .35);
+    background-image: none;
+    border-radius: var(--jflix-radius-pill);
+    padding: var(--jflix-space-2) 0;
+    box-shadow: none;
+}
+
+.alphaPicker.alphaPicker-fixed-right {
+    background-color: rgba(0, 0, 0, .35);
+    border-radius: var(--jflix-radius-pill);
+    padding: var(--jflix-space-2) 0;
+}
+
+/* Align the strip with the first grid row rather than centring it in the
+   viewport (§7.2 "aligned with the first row"). Only the modern box has a
+   height to distribute — it is `display:flex` from its sx. */
+.MuiBox-root.alphaPicker-fixed-right {
+    align-items: flex-start;
+    justify-content: center;
+}
+
+/* The modern letter strip is a MuiToggleButtonGroup, whose stock
+   `display: inline-flex` sizes it to the widest glyph (measured 12.125px inside
+   a 28px plate, so every letter hugged the left edge). It has to fill the plate
+   for the letters to centre on it and for the 28px hit area to be real. */
+.alphaPicker-fixed-right .MuiToggleButtonGroup-root {
+    width: 100%;
+}
+
+/* Letters — modern. MUI's `.MuiToggleButton-primary.Mui-selected{color:
+   primary-main}` is (0,2,0) and the bridge made primary-main the accent, so the
+   selected letter rendered accent-red — accent-as-text is forbidden on every
+   surface (§2.3). All three rules below are (0,3,0) and win. */
+.alphaPicker-fixed-right .MuiToggleButton-root {
+    width: 100%;
+    min-width: 0;
+    padding: 2px 0;
+    border: 0;
+    color: var(--jflix-text-tertiary);
+    background-color: transparent;
+    font: var(--jflix-type-label);
+    letter-spacing: 0.01em;
+    border-radius: var(--jflix-radius-pill);
+    transition:
+        color var(--jflix-dur-fast) var(--jflix-ease-exit),
+        background-color var(--jflix-dur-fast) var(--jflix-ease-exit);
+}
+
+.alphaPicker-fixed-right .MuiToggleButton-root:hover {
+    color: var(--jflix-text-primary);
+    background-color: var(--jflix-overlay-hover);
+}
+
+.alphaPicker-fixed-right .MuiToggleButton-root.Mui-selected {
+    color: var(--jflix-text-primary);
+    background-color: var(--jflix-overlay-selected);
+}
+
+/* Letters — legacy and TV. `.alphaPickerButton` ships
+   `border:0!important; outline:none!important` plus a padding-top/bottom
+   !important ladder under five max-height media queries
+   (alphaPicker/style.scss:31-80); the padding here matches that !important
+   because stock used it on the same property (house rule 3). The focus
+   affordance is 10-global.css §5's box-shadow ring, which the stock
+   `outline:none!important` cannot swallow. */
+.alphaPicker-fixed-right .alphaPickerButton {
+    width: 100%;
+    padding: 2px 0 !important;
+    margin: 0;
+    color: var(--jflix-text-tertiary);
+    background-color: transparent;
+    font: var(--jflix-type-label);
+    letter-spacing: 0.01em;
+    border-radius: var(--jflix-radius-pill);
+    transition:
+        color var(--jflix-dur-fast) var(--jflix-ease-exit),
+        background-color var(--jflix-dur-fast) var(--jflix-ease-exit);
+}
+
+.alphaPicker-fixed-right .alphaPickerButton:hover {
+    color: var(--jflix-text-primary);
+    background-color: var(--jflix-overlay-hover);
+}
+
+.alphaPicker-fixed-right .alphaPickerButton-selected {
+    color: var(--jflix-text-primary);
+    background-color: var(--jflix-overlay-selected);
+}
+
+/* TV letters are one step up the §2.18 scale; 27 × ~26px still fits 1080p. */
+html.layout-tv .alphaPicker-fixed-right .alphaPickerButton {
+    font: var(--jflix-type-body-sm);
+}
+
+/* 4c — the `top` re-set that §3.1 makes a mandatory obligation of a 64px bar.
+   AlphabetPicker.tsx:36-47 hard-codes `top: 96px` (= 2 × the stock 48px
+   toolbar) / `144px` below MUI's sm breakpoint as an `sx` prop, i.e. it does
+   NOT follow the app-bar measurement the way the spacer does. Live values
+   confirmed before overriding: 96px at 1920, 144px at 390 — against a real bar
+   of 96px and 149px respectively, so the phone rail already started 5px under
+   the app bar in stock. Re-derived from the tokens instead of the expected
+   literals: --jflix-bar-h (64 desktop / 56 tablet / 48 on any layout-mobile) +
+   --jflix-lib-toolbar-h (48 / 104) + the 1px rule under the toolbar
+   = 113 desktop, 153 phone.
+   (0,2,0) beats the emotion sx (0,1,0); the media query it sits in adds
+   nothing, which is why no media query is needed here at all.
+   VERIFIED against the contracted end state by injecting §3.1's
+   `toolbar 1 { min-height: var(--jflix-bar-h) }` alongside this file: the grid's
+   first card and the rail's first letter then share y. Until the shell module
+   lands, toolbar 1 is still stock 48px and the rail sits 16px below the first
+   row on desktop — the arithmetic is right, the other half of it is not written
+   yet. */
+.MuiBox-root.alphaPicker-fixed-right {
+    top: calc(var(--jflix-bar-h) + var(--jflix-lib-toolbar-h) + 1px);
+}
+
+/* The legacy/TV rail is not anchored to the top at all — stock gives it only
+   `bottom: max(5.5em, env())` and lets the height be content-driven (measured
+   legacy-desktop: top 378, height 620, bottom 82). It never reaches the header,
+   so there is nothing to re-set there; it is left on its stock anchor. */
+
+/* 4d — keep the grid out from under the rail.
+   Legacy/TV mark the grid `.padded-right-withalphapicker` (stock 7.5%, both dir
+   variants, inside @media (min-height:31.25em), librarybrowser.scss:1365-1371).
+   10-global.css deliberately did not claim it and handed it here: 7.5% is rail
+   CLEARANCE, not a page margin, so collapsing it to --jflix-gutter would put
+   the last column under the letters. The modern grid has no such class, but the
+   rail is its immediately preceding sibling (verified live in the DOM map's
+   skeleton A), so `+` reaches it without :has().
+   max() not calc(): at 1920 the gutter (76.8) already clears the 44px rail and
+   the page stays symmetric; at 390 (gutter 16) the clearance wins.
+   Both blocks repeat stock's min-height gate, because under 31.25em the rail
+   is `display:none !important` and the reserved strip would be dead space. */
+@media all and (min-height: 31.25em) {
+    [dir="ltr"] .padded-right-withalphapicker {
+        padding-right: max(var(--jflix-gutter), var(--jflix-rail-clear), env(safe-area-inset-right));
+    }
+
+    [dir="rtl"] .padded-right-withalphapicker {
+        padding-left: max(var(--jflix-gutter), var(--jflix-rail-clear), env(safe-area-inset-left));
+    }
+
+    [dir="ltr"] .alphaPicker-fixed-right + .itemsContainer.padded-right {
+        padding-right: max(var(--jflix-gutter), var(--jflix-rail-clear), env(safe-area-inset-right));
+    }
+
+    [dir="rtl"] .alphaPicker-fixed-right + .itemsContainer.padded-right {
+        padding-left: max(var(--jflix-gutter), var(--jflix-rail-clear), env(safe-area-inset-left));
+    }
+}
+
+/* ----------------------------------------------------------------------------
+ * 5. The grid itself (§3.12)
+ *
+ * Tile width, aspect, gap, radius, caption typography, hover overlay and the
+ * indicators are the cards module's (§2.9, §3.5–3.7). Three things are the
+ * GRID's and are claimed here: the container's flow, "captions always visible"
+ * and the hover-zoom budget.
+ * -------------------------------------------------------------------------- */
+
+/* `align-content: flex-start` stops a short last line from being stretched
+   apart when the container is taller than its rows; `.itemsContainer` is
+   display:flex + flex-wrap:wrap (card.scss:33,43-47) and stock leaves both
+   alignment properties at their initial `normal`, which behaves as `stretch`
+   for a wrapped flex container. */
+.itemsContainer.vertical-wrap {
+    align-content: flex-start;
+    align-items: flex-start;
+}
+
+/* §0.3 #9 / §3.12: captions are faded on desktop HOME ROWS only and are
+   "always visible in grids" — a 5000-item grid of untitled posters is not
+   browsable. This asserts the end state at (0,4,0) so it does not depend on how
+   narrowly the cards module scopes its fade; opacity AND visibility are both
+   set because either is a plausible way to write that fade.
+   The caption lives outside .cardScalable, as a sibling inside .cardBox, in
+   BOTH card renderers (verified live: React grid and legacy cardBuilder). */
+.itemsContainer.vertical-wrap > .card > .cardBox > .cardText {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Search results are horizontal rows of cards, but §3.13 says they too keep
+   their captions ("result cards follow §3.5 with captions visible"). */
+.searchResults .itemsContainer > .card > .cardBox > .cardText {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Hover zoom. §0.3 #4 fixes 1.12 on rows and 1.06 in grids: a grid tile has
+   neighbours on four sides, not two, so the row figure would overlap the line
+   above and below.
+   This REDECLARES the variable inside the grid rather than writing a transform.
+   The transform belongs to the cards module (§3.5/§3.6 put it on .cardScalable
+   / .cardBox, and only that module knows which); if this file wrote a second
+   one at a different level the two would compound to 1.12 × 1.06 = 1.19 and
+   clip. CONTRACT for the cards module: read `var(--jflix-zoom-row)` for the
+   hover scale and write it on exactly ONE element — then a grid tile scales
+   1.06 with no further coordination. */
+.itemsContainer.vertical-wrap {
+    --jflix-zoom-row: var(--jflix-zoom-grid);
+}
+
+/* §7.2: "zoom … disabled above 60 tiles". There is no virtualisation in 12.1
+   (the whole page of items is in the DOM, default libraryPageSize 100), so on a
+   large library every pointer move would re-composite one of a hundred
+   paint-contained layers. :has() is an ENHANCEMENT here and sits in its own
+   rule (house rule 2): an engine without it simply keeps the 1.06 zoom, which
+   is correct-but-slower, never broken. (0,4,0) — :has() takes the specificity
+   of its argument — so it beats the redeclaration above. */
+.itemsContainer.vertical-wrap:has(> .card:nth-child(61)) {
+    --jflix-zoom-row: 1;
+    --jflix-zoom-grid: 1;
+}
+
+/* --- Empty states (§3.13) -------------------------------------------------- */
+/* Stock `.centerMessage{width:30%; padding:5em 0; margin:auto}`
+   (librarybrowser.scss:322-327) is (0,1,0). 30% of a 1920px page is a 576px
+   column that wraps "Nie znaleziono niczego pasującego" into four lines on a
+   phone. §3.13: body-lg at --jflix-text-tertiary, centred, 96px from the top of
+   the results area, and never an alarming treatment — an empty search is
+   normal, so no red, no icon, no border.
+   `flex: 1 1 100%` matters only when the message is a child of the flex
+   .itemsContainer (NoItemsMessage.tsx:13-22 puts it there); when it is a direct
+   child of the page it is ignored. Nothing here touches `display`, so the
+   legacy `.noItemsMessage.hide` variant stays hidden (house rule 4). */
+.noItemsMessage.centerMessage {
+    flex: 1 1 100%;
+    width: auto;
+    max-width: 560px;
+    margin: 0 auto;
+    padding: var(--jflix-space-12) var(--jflix-space-4) var(--jflix-space-10);
+    text-align: center;
+    font: var(--jflix-type-body-lg);
+    color: var(--jflix-text-tertiary);
+}
+
+.noItemsMessage.centerMessage .MuiTypography-h1 {
+    font: var(--jflix-type-h2);
+    letter-spacing: -0.012em;
+    color: var(--jflix-text-secondary);
+    margin-bottom: var(--jflix-space-3);
+}
+
+.noItemsMessage.centerMessage .MuiTypography-body1 {
+    font: var(--jflix-type-body-lg);
+    color: var(--jflix-text-tertiary);
+}
+
+/* The legacy placeholder is `div.noItemsMessage.hide.padded-left.padded-right >
+   br + p` and carries no .centerMessage. */
+.noItemsMessage > p {
+    font: var(--jflix-type-body-lg);
+    color: var(--jflix-text-tertiary);
+}
+
+/* 10-global.css §2 hands `h1.sectionTitle` here: the base theme gives
+   .sectionTitle no font-size anywhere, so the bare `h1` rule was rendering
+   library section headings at the details-page display size (40px). §2.4 scopes
+   --jflix-type-h1 to the details item name alone; a page/section title is h2. */
+h1.sectionTitle {
+    font: var(--jflix-type-h2);
+    letter-spacing: -0.012em;
+}
+
+/* ----------------------------------------------------------------------------
+ * 6. Legacy library chrome — #/movies in desktop-legacy and TV, and the legacy
+ *    #/list page that every "see all" row title links to.
+ * -------------------------------------------------------------------------- */
+
+/* Page padding. Stock `.libraryPage{padding-top:7em!important}` +
+   `:not(.noSecondaryNavPage){7.5em!important}` (librarybrowser.scss:91-93,
+   111-113) with a 4.6em/6.7em pair ≥100em. The modern app already cancels all
+   four with `.libraryPage:not(.itemDetailPage){padding-top:0!important}`
+   (AppOverrides.scss:20-24) and uses the ResizeObserver-measured spacer
+   instead — measured live: #searchPage padding-top 0 on modern-desktop.
+   So this recompute is only reachable in the legacy layout, and it is scoped
+   there: `#reactRoot > .mainAnimatedPages.skinBody` is §3.2's legacy
+   discriminator (in the modern DOM that element exists but is nested under
+   `main`, and the live page hangs off its sibling `div.skinBody`).
+   TV is deliberately excluded: `html.layout-tv` runs at 125% root font-size
+   with an 87px .skinHeader, where 64+24 would leave a 1px gap; its stock 6.7em
+   (134px live) already clears it.
+   !important matches stock's own !important on the same property. */
+html:not(.layout-tv) #reactRoot > .mainAnimatedPages.skinBody .libraryPage:not(.itemDetailPage) {
+    padding-top: calc(var(--jflix-bar-h) + var(--jflix-space-6)) !important;
+}
+
+/* The legacy control bar and both pagers are `flex … justify-content-center`.
+   Left-aligning them puts "1-24 z 24" and the play/sort/filter cluster on the
+   same --jflix-gutter line as the grid below (§1.3), which is the single trait
+   that carries most of the reference's look. :has() is an enhancement and has
+   its own rule; without it the bar simply stays centred, exactly as baseline.
+   The subject is kept narrow (one flex row), never `body` — a broad :has()
+   subject re-evaluates a huge subtree on every DOM mutation. */
+.libraryPage .flex.justify-content-center:has(> .paging) {
+    justify-content: flex-start;
+}
+
+/* The `#/list` toolbar has its own stock centring rule
+   (librarybrowser.scss:1389-1391, (0,1,0)). */
+.itemsViewSettingsContainer {
+    justify-content: flex-start;
+}
+
+/* Pager text. Tabular numerals stop "1-24 z 24" from jittering as pages change
+   (§2.4's --jflix-font-num rationale). */
+.paging,
+.listPaging {
+    font: var(--jflix-type-body-sm);
+    color: var(--jflix-text-tertiary);
+    font-variant-numeric: tabular-nums;
+}
+
+/* One of §2.16's hard-coded survivors: `.button-accent-flat{color:#00a4dc
+   !important}` (librarybrowser.scss:1378-1380) is the legacy list page's
+   emphasis button. §7.1 gates on zero visible #00a4dc, and the !important here
+   only matches stock's own on the same property. */
+.button-accent-flat {
+    color: var(--jflix-text-primary) !important;
+}
+
+/* The legacy sort button's direction glyph and label. */
+.btnSortText {
+    font: var(--jflix-type-button);
+    letter-spacing: 0.005em;
+}
+
+.btnSortIcon {
+    font-size: var(--jflix-icon-md);
+    color: var(--jflix-text-tertiary);
+}
+
+/* ----------------------------------------------------------------------------
+ * 7. List view rows — `ViewMode.ListView` (ItemsView.tsx:155-160,196-201)
+ *
+ * Scoped to `.itemsContainer.vertical-list` so the details page's episode lists
+ * (§3.10, another module) are untouched. §3.10's full recipe — the 160×90 thumb,
+ * the index column, the 2/3-line clamp, the undo of the stock
+ * `display:none` on the mobile episode synopsis — belongs there; what a library
+ * list needs on top of the stock row is the surface ladder and the states.
+ * -------------------------------------------------------------------------- */
+
+.itemsContainer.vertical-list .listItem {
+    min-height: var(--jflix-list-row-h);
+    border-radius: var(--jflix-radius-sm);
+    transition: background-color var(--jflix-dur-fast) var(--jflix-ease-exit);
+}
+
+.itemsContainer.vertical-list .listItem-border {
+    border-bottom-color: var(--jflix-line-hairline);
+}
+
+.itemsContainer.vertical-list .listItemBodyText {
+    font: var(--jflix-type-body);
+    color: var(--jflix-text-primary);
+}
+
+.itemsContainer.vertical-list .listItemBodyText.secondary {
+    font: var(--jflix-type-body-sm);
+    color: var(--jflix-text-tertiary);
+}
+
+.itemsContainer.vertical-list .listItemImage {
+    border-radius: var(--jflix-radius-tile);
+}
+
+.itemsContainer.vertical-list .listGroupHeader {
+    font: var(--jflix-type-h3);
+    letter-spacing: 0;
+    color: var(--jflix-text-secondary);
+    padding-top: var(--jflix-space-6);
+}
+
+/* UNSCOPED on purpose — two of §2.16's hard-coded #00a4dc survivors
+   (listview.scss:158-178 and :249). They are list-row primitives that appear in
+   library list mode AND on the details page, and §7.1 gates on zero visible
+   #00a4dc anywhere. LIST 1 in 00-tokens.css names "listview" as their owner and
+   this file is the only listview owner in play.
+   HAND-OFF: the details/episode-rows module (§3.10) must not re-introduce a
+   palette colour on either. Stock's `transform: scale(1.2,1.2)` on the hover is
+   left intact (§4.5 — the affordance is stock's, only the colour was wrong). */
+/* Two selectors on purpose. 10-global.css §8 already neutralises this button
+   through `.paper-icon-button-light:hover:not(:disabled)` (0,3,0) — measured
+   live on #/details (season): rgb(255,255,255) on rgba(255,255,255,.08), with
+   stock's scale(1.2) intact — but that rule is flagged there as a §3.16
+   deviation that may yet be scoped down, and `.listItemImageButton` is the
+   listview class that has to stay #00a4dc-free either way. The compound
+   variant ties (0,3,0) and wins on file order; the bare one covers any markup
+   without `.paper-icon-button-light`. Same overlay as §8 so the two agree. */
+.listItemImageButton:hover,
+.listItemImageButton.paper-icon-button-light:hover {
+    color: var(--jflix-text-primary);
+    background: var(--jflix-overlay-hover);
+}
+
+.listItemIcon:not(.listItemIcon-transparent) {
+    background-color: var(--jflix-surface-4);
+    color: var(--jflix-text-primary);
+}
+
+/* ----------------------------------------------------------------------------
+ * 8. Search (§3.13) — `#/search`, rendered by the LEGACY components in both
+ *    layouts (search.tsx:24-43).
+ * -------------------------------------------------------------------------- */
+
+/* The bar sits directly under the app bar with no library toolbar between them,
+   so it needs its own breathing room. */
+.searchFields {
+    padding-top: var(--jflix-space-7);
+    padding-bottom: var(--jflix-space-3);
+}
+
+/* Stock caps the inner block at 60em (892.8px live) and centres it. 640px is a
+   search field, not a paragraph column; `position: relative` is the positioning
+   context for the magnifier below. */
+.searchFieldsInner {
+    position: relative;
+    max-width: 640px;
+}
+
+/* §3.13 / §2.16: `.searchfields-icon{color:#aaa}` (librarybrowser.scss:1374) is
+   a hard-coded literal §7.1 greps for. Stock renders it as a flex SIBLING of
+   the input, outside the field; lifting it into the field's leading slot is
+   what makes the control read as one object. `.searchfields-icon` is a specific
+   class, so §3.16's ban on restyling `.material-icons` globally is respected.
+   Anchored from the BOTTOM, not `top: 50%`: `.searchFieldsInner` is ~20px
+   taller than the field (the 0×0 floating label still opens a line box above
+   it), so centring on the wrapper put the glyph 10px above the text baseline —
+   measured wrapper centre 110 against input centre 120. The input's bottom edge
+   is flush with the wrapper's (the inline `margin-bottom:0` on .inputContainer
+   guarantees it), so half the field's spare height off the bottom is exact on
+   every profile, including TV where the field is 56 and the glyph 32. No
+   transform is used, so nothing becomes a containing block. */
+.searchfields-icon {
+    position: absolute;
+    bottom: calc((var(--jflix-control-h) - var(--jflix-icon-lg)) / 2);
+    font-size: var(--jflix-icon-lg);
+    line-height: 1;
+    color: var(--jflix-text-tertiary);
+    pointer-events: none;
+    z-index: 1;
+}
+
+[dir="ltr"] .searchFieldsInner > .searchfields-icon {
+    left: var(--jflix-space-3);
+}
+
+[dir="rtl"] .searchFieldsInner > .searchfields-icon {
+    right: var(--jflix-space-3);
+}
+
+/* The field. Scoped by id so the forms-dialogs module keeps `.emby-input`
+   (§3.15). Opaque fill is not cosmetic — the search page renders over
+   .backdropContainer and a translucent field there is unreadable. The 40px
+   leading pad is the icon slot §3.13 asks for (24px glyph + 12px inset + 4px). */
+#searchTextInput.emby-input {
+    height: var(--jflix-control-h);
+    background-color: var(--jflix-surface-4);
+    border: 1px solid transparent;
+    border-radius: var(--jflix-radius-sm);
+    font: var(--jflix-type-body);
+    color: var(--jflix-text-primary);
+    transition:
+        background-color var(--jflix-dur-fast) var(--jflix-ease-exit),
+        border-color var(--jflix-dur-fast) var(--jflix-ease-exit);
+}
+
+/* The leading slot is derived, not the literal 40px §3.13 gives, so it tracks
+   the glyph: 12 inset + --jflix-icon-lg + 4 = 40 on pointer platforms and 48 on
+   TV, where §2.18 puts --jflix-icon-lg at 32. */
+[dir="ltr"] #searchTextInput.emby-input {
+    padding: 0 var(--jflix-space-3) 0 calc(var(--jflix-space-3) + var(--jflix-icon-lg) + var(--jflix-space-1));
+}
+
+[dir="rtl"] #searchTextInput.emby-input {
+    padding: 0 calc(var(--jflix-space-3) + var(--jflix-icon-lg) + var(--jflix-space-1)) 0 var(--jflix-space-3);
+}
+
+#searchTextInput.emby-input:hover {
+    border-color: var(--jflix-line-subtle);
+}
+
+/* Focus: a 2px inset border PLUS the ring from 10-global.css §5 (two channels,
+   §5.3). The padding drops by 1px on each side so the 1px → 2px border does not
+   shift the text — §3.13 says so explicitly. */
+#searchTextInput.emby-input:focus-visible {
+    background-color: var(--jflix-surface-5);
+    border: 2px solid var(--jflix-line-invert);
+}
+
+[dir="ltr"] #searchTextInput.emby-input:focus-visible {
+    padding: 0 calc(var(--jflix-space-3) - 1px) 0 calc(var(--jflix-space-3) + var(--jflix-icon-lg) + var(--jflix-space-1) - 1px);
+}
+
+[dir="rtl"] #searchTextInput.emby-input:focus-visible {
+    padding: 0 calc(var(--jflix-space-3) + var(--jflix-icon-lg) + var(--jflix-space-1) - 1px) 0 calc(var(--jflix-space-3) - 1px);
+}
+
+/* The TV layout drives focus programmatically and never fires :focus-visible
+   (§3 preamble), so the same end state is repeated on :focus there. */
+html.layout-tv #searchTextInput.emby-input:focus {
+    background-color: var(--jflix-surface-5);
+    border: 2px solid var(--jflix-line-invert);
+}
+
+#searchTextInput.emby-input::placeholder {
+    color: var(--jflix-text-tertiary);
+}
+
+/* The floating label is `label.inputLabel.inputLabelFocused`, measured 0×0 —
+   the search field has no label text. Nothing to do, and §3.15's
+   "labels above fields, never floating" is the forms module's rule. */
+
+/* Results. `.searchResults .emby-scroller{overflow:visible}` is already true
+   live; the rows themselves are §3.4 markup and are left to the home-rows
+   module so the two do not disagree about row rhythm. */
+.searchResults {
+    padding-top: var(--jflix-space-4);
+}
+
+/* Empty-query suggestions. Both the container and each link carry INLINE styles
+   (`text-align:center` / `display:inline-block;padding:.5em 1em`,
+   SearchSuggestions.tsx:22-23,36) which cannot be beaten without !important —
+   stock did not use !important there, so the padding and layout are left alone
+   and only the colours and shape are claimed. 10-global.css §3 paints
+   `.button-link` --jflix-info at (0,1,0); (0,2,0) here wins. */
+.searchSuggestionsList .button-link {
+    color: var(--jflix-text-secondary);
+    background-color: var(--jflix-surface-4);
+    border-radius: var(--jflix-radius-pill);
+    margin: var(--jflix-space-1);
+    font: var(--jflix-type-body);
+    transition:
+        background-color var(--jflix-dur-fast) var(--jflix-ease-exit),
+        color var(--jflix-dur-fast) var(--jflix-ease-exit);
+}
+
+.searchSuggestionsList .button-link:hover {
+    color: var(--jflix-text-primary);
+    background-color: var(--jflix-surface-5);
+}
+
+/* ----------------------------------------------------------------------------
+ * 9. Preference media queries
+ * 00-tokens.css already retunes the shared tokens for all three preferences;
+ * only the two literal translucencies this file introduces need their own line.
+ * -------------------------------------------------------------------------- */
+
+@media (prefers-reduced-transparency: reduce) {
+    .alphaPicker-fixed-right .MuiPaper-root,
+    .alphaPicker.alphaPicker-fixed-right {
+        background-color: var(--jflix-surface-2);
+    }
+}
+
+@media (prefers-contrast: more) {
+    .alphaPicker-fixed-right .MuiPaper-root,
+    .alphaPicker.alphaPicker-fixed-right {
+        background-color: rgba(0, 0, 0, .62);
+    }
+
+    header.MuiAppBar-root > .MuiToolbar-root:nth-child(2) {
+        border-bottom-color: var(--jflix-line-subtle);
+    }
+}

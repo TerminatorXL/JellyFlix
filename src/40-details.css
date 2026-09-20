@@ -1,0 +1,1354 @@
+/* ============================================================================
+ * JellyFlix — 40-details.css
+ * §3.9 item detail hero · §3.10 episode / list rows · §3.11 cast
+ *
+ * Covers movie, series, season, episode, person and collection detail pages.
+ * The details page is the LEGACY controller in both app layouts (verified:
+ * `#itemDetailPage` is byte-identical on modern-* and legacy-*), so every rule
+ * here is written against the legacy markup and needs no modern/legacy fork —
+ * only the layout classes (`html.layout-desktop|layout-mobile|layout-tv`) and
+ * width media queries differ.
+ *
+ * THREE MECHANISMS TO KEEP STRAIGHT (docs/dom-map/details.md):
+ *   1. desktop/tv backdrop = `.backdropContainer > .backdropImage`, position
+ *      fixed, 100vw x 100vh, z-index -1, `contain: size layout style`. Its
+ *      height is NOT ours to change. `#itemBackdrop` is an EMPTY spacer with
+ *      `background-attachment: fixed` and no image — it only decides how much
+ *      of that fixed layer is revealed, so the hero height is set on IT.
+ *   2. mobile backdrop = `#itemBackdrop` itself, carrying a real inline
+ *      `background-image`, pulled under the app bar by a stock
+ *      `margin-top: -48px !important` that must stay matched to --jflix-bar-h
+ *      (48px on every html.layout-mobile device — see 00-tokens.css).
+ *      Its `::before` is already the stock top fade, so the bottom scrim here
+ *      uses `::after` on every layout.
+ *   3. the dim over (1) = `.backgroundContainer.withBackdrop`, a full-viewport
+ *      FIXED layer present on every route, so the graded regrade must be
+ *      route-scoped.
+ *
+ * DO NOT TOUCH `.overview`: its font-size, width and `-webkit-line-clamp` feed
+ * a one-shot JS measurement (`Math.abs(scrollHeight - offsetHeight) > 2`,
+ * index.js:936) that decides "Pokaż więcej" visibility once, at render, and
+ * never re-evaluates. Not one declaration in this file names `.overview`,
+ * `.detail-clamp-text` or their metrics. §7.2 gates on it.
+ *
+ * LOCAL CUSTOM PROPERTIES (scoped to #itemDetailPage, not global tokens):
+ *   --jflix-hero-h        revealed height of the hero (§3.9 "Hero height")
+ *   --jflix-hero-text-h   reserved height of the floating title block
+ *   --jflix-logo-h        max logo height (§3.9, 180/150/120/96)
+ *   --jflix-listthumb-w/-h  §3.10 list thumbnail (160x90)
+ * They are declared here rather than in 00-tokens.css because file ownership
+ * is strict; SPEC hand-off: §2.8 should absorb them if another module needs
+ * the hero height (the shell module does, for the app-bar spacer — see the
+ * cross-module note at the end of this file).
+ * ========================================================================== */
+
+/* ============================================================================
+ * A. HERO GEOMETRY (§3.9 "Hero height")
+ * One custom property per breakpoint; every consumer below reads it, so the
+ * hero, the scrim and the logo can never drift apart.
+ * `#itemDetailPage` is (1,0,0) and beats every stock `.itemBackdrop` rule
+ * (0,1,0) / `.layout-mobile .itemBackdrop` (0,2,0) through inheritance.
+ * ========================================================================== */
+
+/* DEFAULTS = stock geometry. A details page with no backdrop art (a person, or
+   any item whose library has no backdrop) must stay on the stock 40vh spacer:
+   measured, a 720px hero there is 540px of pure black above the portrait,
+   because there is nothing to reveal. Every enlarged value below is therefore
+   behind the "this page has a backdrop" guard documented in section D. */
+#itemDetailPage {
+    --jflix-hero-h: 40vh;
+    --jflix-hero-text-h: 0px;
+    --jflix-logo-h: 96px;
+}
+
+/* The §3.10 list thumbnail lives on :root, not on #itemDetailPage, because the
+   `.listItem` family in section K is page-agnostic (search results and the
+   library list view use it too) and would otherwise fall back to a hard-coded
+   size off the details page.
+   Phone column: 160px of a 390px row leaves 95px for the title after the thumb,
+   the 16px gap and the 80px action cluster — measured, and unreadable. 112x63
+   is the same 16:9 at 0.7x. TV column: 1.6x, matching §2.18's type ratio. */
+:root {
+    --jflix-listthumb-w: 160px;
+    --jflix-listthumb-h: 90px;
+}
+
+@media (max-width: 599px) {
+    :root {
+        --jflix-listthumb-w: 112px;
+        --jflix-listthumb-h: 63px;
+    }
+}
+
+html.layout-tv {
+    --jflix-listthumb-w: 256px;
+    --jflix-listthumb-h: 144px;
+}
+
+/* phone column (§3.9: 44vh mobile) */
+.backgroundContainer.withBackdrop ~ div #itemDetailPage {
+    --jflix-hero-h: 44vh;
+}
+
+/* tablet 600–999 (§3.9: 52vh) */
+@media (min-width: 600px) {
+    .backgroundContainer.withBackdrop ~ div #itemDetailPage {
+        --jflix-hero-h: 52vh;
+        --jflix-logo-h: 120px;
+    }
+}
+
+/* laptop 1000–1199 (§3.9: 56vh) */
+@media (min-width: 1000px) {
+    .backgroundContainer.withBackdrop ~ div #itemDetailPage {
+        --jflix-hero-h: 56vh;
+        --jflix-logo-h: 150px;
+    }
+}
+
+/* desktop ≥1200 (§3.9: clamp(360px, min(56.25vw, 78vh), 720px)).
+   --jflix-hero-text-h reserves the floating title block. 210px is measured,
+   not guessed: h1 item name (44) + original title (26) + metadata row (35) +
+   button row (48 + 20 margin) = 173px, plus the 24px breathing room §2.7's
+   space-6 gives. Section D pulls the ribbon up by exactly this much and
+   bottom-aligns its content, so a taller block (a 2-line Polish title) grows
+   DOWNWARD into the page instead of off the top of the hero. */
+@media (min-width: 1200px) {
+    .backgroundContainer.withBackdrop ~ div #itemDetailPage {
+        --jflix-hero-h: clamp(360px, min(56.25vw, 78vh), 720px);
+        --jflix-hero-text-h: 210px;
+        --jflix-logo-h: 180px;
+    }
+}
+
+/* MOBILE. Measured: `.backgroundContainer` never gets `.withBackdrop` on
+   html.layout-mobile — the fixed backdrop layer is a desktop/tv mechanism, and
+   the mobile hero image lives on `#itemBackdrop` itself — so the guarded
+   columns above never fire here and the hero stayed on the stock 40vh.
+   The guard's whole purpose (do not open a 720px black hole on a page with no
+   art) costs at most 4vh here, so the mobile column is set unconditionally.
+   (1,1,1): beats the #itemDetailPage default, and the guarded desktop columns
+   cannot collide because they do not match on this layout.
+   An 820px tablet reports layout-mobile (house rule 10), so it needs the
+   tablet value, not the phone one — width query, same specificity, later. */
+html.layout-mobile #itemDetailPage {
+    --jflix-hero-h: 44vh;
+}
+
+@media (min-width: 600px) {
+    html.layout-mobile #itemDetailPage {
+        --jflix-hero-h: 52vh;
+    }
+}
+
+/* TV: stock ships `.layout-tv .itemBackdrop{display:none}`, so there is no
+   revealed hero at all — the TV page is the poster-left / text-right layout in
+   the baseline, and §3.9's "62vh TV" has nothing to apply to. Recorded here
+   rather than declared, because declaring it would be dead weight and section
+   D (the only consumer of --jflix-hero-text-h) is html.layout-desktop-scoped.
+   SPEC: §3.9's TV hero height is unreachable in 12.1 — drop it or say that it
+   requires un-hiding `.itemBackdrop` first. */
+
+/* The revealed hero. `background-position: 50% 22%` (§3.9) keeps faces out of
+   the scrim; it is inert on desktop (the spacer has no image of its own) and
+   load-bearing on mobile, where #itemBackdrop IS the image — so it is written
+   once, here, instead of twice.
+   NOT touched: `margin-top` (stock -48px !important on modern-mobile, +3rem on
+   legacy-mobile), `background-attachment`, and the stock fade-in animation. */
+#itemBackdrop {
+    height: var(--jflix-hero-h);
+    background-position: 50% 22%;
+}
+
+/* Bottom hero scrim — §2.6 geometry, "lower 62% of the hero".
+   `::after` on every layout: modern-mobile's `::before` is already the stock
+   top fade (AppOverrides.scss:38-45) and must be left alone.
+   This is what makes the "text sits where the scrim is ≥0.72 alpha" gate hold
+   at EVERY viewport height, because it is hero-relative — the viewport-relative
+   gradient in section B alone weakens as the window shortens.
+   `#itemBackdrop` is already `position: relative` in stock, and it has no
+   containment, so the pseudo is free. */
+#itemBackdrop::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 62%;
+    background-image: var(--jflix-scrim-bottom);
+    pointer-events: none;
+}
+
+/* ============================================================================
+ * B. GRADED SCRIM over the fixed backdrop (§3.9 "Gradient regrade")
+ * Replaces stock's flat `opacity: .86` dim (_theme.scss:135, (0,2,0)).
+ * ========================================================================== */
+
+/* FALLBACK for :has()-less engines (webOS ≤23 / Tizen ≤2022), and the base
+   value every route inherits: a gentler flat dim. Still an improvement on
+   stock, still legible on home / library / search. House rule 2 — the :has()
+   rule below is an ENHANCEMENT and lives in its own rule, never grouped. */
+.backgroundContainer.withBackdrop {
+    opacity: .92;
+}
+
+/* The real thing, route-scoped because `.backgroundContainer` is a
+   full-viewport fixed layer on EVERY route. One :has(), on its own.
+   Stops are viewport-relative (vh) on purpose: the layer is `position: fixed`,
+   so the gradient stays pinned while content scrolls — consistent with
+   `#itemBackdrop`'s `background-attachment: fixed`.
+   iOS Safari treats that attachment as `scroll`, so the iOS parallax differs;
+   nothing in this file depends on it. */
+body:has(#itemDetailPage:not(.hide)) .backgroundContainer.withBackdrop {
+    opacity: 1;
+    background-color: transparent;
+    background-image: linear-gradient(180deg, rgba(11, 11, 11, .15) 0, rgba(11, 11, 11, .55) 34vh, #0B0B0B 62vh);
+}
+
+/* The left (90deg) scrim applies only ≥1000px (§2.6). Second :has() rule, also
+   alone, so an engine without :has() drops both and keeps the flat fallback. */
+@media (min-width: 1000px) {
+    body:has(#itemDetailPage:not(.hide)) .backgroundContainer.withBackdrop {
+        background-image:
+            linear-gradient(180deg, rgba(11, 11, 11, .15) 0, rgba(11, 11, 11, .55) 34vh, #0B0B0B 62vh),
+            linear-gradient(90deg, rgba(11, 11, 11, .85) 0, rgba(11, 11, 11, .25) 48%, transparent 72%);
+    }
+}
+
+/* ============================================================================
+ * C. PAGE BODY under the hero — BOTH backdrop-settings states (§3.9, §7.2)
+ *
+ * `.noBackdropTransparency` is added to #itemDetailPage by index.js:520 when
+ * the user has "Details banner" on and global backdrops off; it is PRESENT BY
+ * DEFAULT on this server. Stock then paints `.detailPageWrapperContainer`
+ * solid (`_theme.scss:354`), while the `:not()` state leaves it transparent and
+ * lets the fixed, 14%-transparent backdrop show through the whole page.
+ *
+ * DECISION: the wrapper is opaque in BOTH states. The scrim in section B is
+ * `position: fixed`, so on the transparent variant a scrolled page would sit on
+ * the gradient's own 0.15-alpha top band and put artwork behind body copy —
+ * §5.1 has no contrast pair that survives that. Making both states identical is
+ * the only reading of §7.2's "both render correctly" that is also legible.
+ * The art is still visible exactly where the design wants it: in the hero.
+ * (0,2,0) via #itemDetailPage's id → wins over stock's (0,2,0) either way.
+ * ========================================================================== */
+
+#itemDetailPage .detailPageWrapperContainer {
+    background-color: var(--jflix-surface-0);
+}
+
+/* ============================================================================
+ * D. THE NETFLIX HERO — desktop, and only where there is art to put it on
+ *
+ * DISCRIMINATOR, and why it is not :has(): `.backgroundContainer` is a direct
+ * child of `#reactRoot` and a PRECEDING SIBLING of the element that contains
+ * the page in both layouts (`div.MuiBox-root` on modern, `div.mainAnimatedPages`
+ * on legacy) — verified live. `~ div` therefore reaches the page without a
+ * single relational pseudo-class, so this works on webOS 22 / Tizen 2021 too.
+ * `.withBackdrop` is present only when a backdrop image is actually active, so
+ * a PERSON page (no backdrop, no logo — the portrait IS the only art) keeps the
+ * stock poster-left layout untouched. That is the whole reason this guard
+ * exists: §7.2 asks for movie/series/season/episode AND person.
+ *
+ * What it does, per §3.9 + §1.3:
+ *   - the 25vw poster column goes away, because it is the only thing standing
+ *     between the hero text and the single `--jflix-gutter` alignment line that
+ *     §1.3 calls the most load-bearing trait in the whole theme;
+ *   - `.detailRibbon` stops being an opaque band and becomes a bottom-aligned
+ *     column floating on the art (§3.9 "Float the text on the art instead");
+ *   - the content column moves to the same gutter.
+ * ========================================================================== */
+
+/* The poster column. Stock `.layout-desktop .detailImageContainer .card` is
+   (0,3,0); this is (1,4,1), so no !important is needed. `.hide-mobile` is the
+   desktop/tv slot — the mobile one (`.hide-desktop.hide-tv`) is untouched. */
+html.layout-desktop .backgroundContainer.withBackdrop ~ div #itemDetailPage .detailImageContainer.hide-mobile {
+    display: none;
+}
+
+/* The ribbon. Stock: `.layout-desktop .detailRibbon{position:relative;
+   margin-top:-7.2em; height:7.2em}` (0,2,0) and
+   `.layout-desktop [dir="ltr"] .detailRibbon{padding-left:32.45vw}` (0,3,0) —
+   which is why 10-global.css's `[dir="ltr"] .padded-left` (0,2,0) loses on this
+   one element and the gutter has to be restated here.
+   `justify-content: flex-end` + the negative margin of exactly
+   --jflix-hero-text-h means the block hugs the bottom of the hero whatever it
+   contains, and overflows DOWNWARD when a title wraps. */
+html.layout-desktop .backgroundContainer.withBackdrop ~ div #itemDetailPage .detailRibbon {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    /* Stock `.detailRibbon{align-items:center; align-content:center}` is for the
+       stock ROW layout; in a column it centres the whole text block
+       horizontally (measured: the title landed at x=800 instead of the 76.8px
+       gutter). `stretch` puts every child on the gutter line and lets a long
+       Polish title wrap inside the column instead of going max-content wide. */
+    align-items: stretch;
+    align-content: stretch;
+    height: auto;
+    min-height: var(--jflix-hero-text-h);
+    margin-top: calc(-1 * var(--jflix-hero-text-h));
+    padding-bottom: var(--jflix-space-2);
+    background-color: transparent;
+    background-image: none;
+}
+
+/* Both dir variants, because the stock rule it replaces has both (§2.7). */
+[dir="ltr"] .backgroundContainer.withBackdrop ~ div #itemDetailPage .detailRibbon {
+    padding-left: max(var(--jflix-gutter), env(safe-area-inset-left));
+    padding-right: max(var(--jflix-gutter), env(safe-area-inset-right));
+}
+
+[dir="rtl"] .backgroundContainer.withBackdrop ~ div #itemDetailPage .detailRibbon {
+    padding-right: max(var(--jflix-gutter), env(safe-area-inset-right));
+    padding-left: max(var(--jflix-gutter), env(safe-area-inset-left));
+}
+
+/* `.infoWrapper` is `flex: 1 0 0` for the stock ROW layout; in the column above
+   that flex-grow would eat the free space and defeat `justify-content:flex-end`. */
+html.layout-desktop .backgroundContainer.withBackdrop ~ div #itemDetailPage .detailRibbon > .infoWrapper {
+    flex: 0 0 auto;
+}
+
+/* The content column joins the same alignment line. Stock
+   `[dir="ltr"] .detailPagePrimaryContent{padding-left:32.45vw}` is (0,2,0). */
+[dir="ltr"] .backgroundContainer.withBackdrop ~ div #itemDetailPage .detailPagePrimaryContent {
+    padding-left: max(var(--jflix-gutter), env(safe-area-inset-left));
+}
+
+[dir="rtl"] .backgroundContainer.withBackdrop ~ div #itemDetailPage .detailPagePrimaryContent {
+    padding-right: max(var(--jflix-gutter), env(safe-area-inset-right));
+}
+
+/* Give the content column air under a 720px hero (stock is 1.25em). */
+html.layout-desktop .backgroundContainer.withBackdrop ~ div #itemDetailPage .detailPagePrimaryContent {
+    padding-top: var(--jflix-space-7);
+}
+
+/* ============================================================================
+ * E. LOGO (§3.9 "Logo")
+ * Stock measures {960,156 480x173} — `top:10vh; right:25vw; width:25vw`, i.e.
+ * the RIGHT side of the hero. Netflix puts it bottom-left, on the gutter line.
+ * `.detailLogo` is an absolutely positioned child of #itemDetailPage, whose box
+ * starts exactly where the hero starts, so `top` is hero-relative arithmetic.
+ * It sits 8px above the floating text block; `background-position: left bottom`
+ * pins the art to the bottom of its own box, so short and tall logos both land
+ * on the same baseline.
+ * Stock hides it on mobile/tv and below 68.75em — deliberately NOT re-shown
+ * (see section F: the mobile hero has its own poster pinned bottom-left and the
+ * two would collide). Wherever it is hidden, section G's no-logo fallback
+ * renders the item name at display size instead.
+ * ========================================================================== */
+
+.detailLogo {
+    right: auto;
+    left: max(var(--jflix-gutter), env(safe-area-inset-left));
+    top: calc(var(--jflix-hero-h) - var(--jflix-logo-h) - var(--jflix-hero-text-h) - 8px);
+    width: min(38vw, 620px);
+    height: var(--jflix-logo-h);
+    background-position: left bottom;
+    background-size: contain;
+    /* §3.9 gives this literally. It is a FILTER drop-shadow on artwork, not a
+       box-shadow on a surface, so §7.1's "no shadow at rest" gate (which is
+       about elevation on flat surfaces, §2.11) is not what it contradicts —
+       §1.2 "Shadows are never used on top of artwork" is. Shipped as specified
+       because §0 says a number given is a number that ships; flagged in the
+       report so §1.2 and §3.9 can be reconciled once. */
+    filter: drop-shadow(0 2px 12px rgba(0, 0, 0, .6));
+}
+
+[dir="rtl"] .detailLogo {
+    left: auto;
+    right: max(var(--jflix-gutter), env(safe-area-inset-right));
+    background-position: right bottom;
+}
+
+/* ============================================================================
+ * F. RIBBON — layout-agnostic parts (§3.9 "Title ribbon")
+ * Stock paints the band from `--jf-palette-AppBar-defaultBg` + the dark theme's
+ * `rgba(var(--jf-palette-background-paperChannel) / .8)` — measured
+ * rgba(35,35,35,.8) with the bridge in place. `--jf-palette-AppBar-gradient` is
+ * already `none` in 00-tokens.css, so the base rule contributes nothing and
+ * only the background-color has to be cleared. (0,2,0) beats the theme's
+ * (0,1,0) / (0,2,0) on order.
+ * ========================================================================== */
+
+#itemDetailPage .detailRibbon {
+    background-color: transparent;
+    background-image: none;
+}
+
+/* Text over artwork gets the decorative shadow (§3.9). It is belt-and-braces:
+   §2.6's scrim rule carries the contrast on its own and this does not count
+   toward WCAG. Applied to the hero text only, never to body copy. */
+#itemDetailPage .detailRibbon .nameContainer,
+#itemDetailPage .detailRibbon .itemMiscInfo {
+    text-shadow: var(--jflix-text-shadow);
+}
+
+/* ============================================================================
+ * G. TITLES (§2.4 --jflix-type-h1 "Details-page item name")
+ * `.itemName` is stock `margin:.5em 0; font-weight:600; white-space:nowrap;
+ * text-overflow:ellipsis; overflow:hidden` — a one-line ellipsis, which throws
+ * away half of a Polish title. Wrapped to two lines instead (§2.4: "Hero title
+ * when no logo art (max 2 lines)").
+ * ========================================================================== */
+
+#itemDetailPage .nameContainer h1.itemName,
+#itemDetailPage .nameContainer h1.parentName {
+    font: var(--jflix-type-h1);
+    letter-spacing: -0.018em;
+    color: var(--jflix-text-primary);
+    white-space: normal;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+/* The links inside `h1.parentName` / `.subtitle` carry an inline
+   `style="color:inherit"` (index.js:444-456), so they follow the heading colour
+   without an !important — that is exactly what `inherit` buys us. Underline on
+   hover only, so the hero does not read as a link farm. */
+#itemDetailPage .nameContainer h1.parentName a,
+#itemDetailPage .nameContainer .subtitle a {
+    text-decoration: none;
+}
+
+#itemDetailPage .nameContainer h1.parentName a:hover,
+#itemDetailPage .nameContainer .subtitle a:hover {
+    text-decoration: underline;
+}
+
+/* Episode / season second line ("Season 1 - 1. Pilot"). */
+#itemDetailPage .nameContainer h3.itemName.subtitle,
+#itemDetailPage .nameContainer h3.parentName {
+    font: var(--jflix-type-h2);
+    letter-spacing: -0.012em;
+    color: var(--jflix-text-primary);
+}
+
+/* Original title. */
+#itemDetailPage .nameContainer h4.itemName.originalTitle {
+    font: var(--jflix-type-body-sm);
+    color: var(--jflix-text-tertiary);
+}
+
+/* No-logo fallback — item name at display size (§3.9, §7.2).
+   Sibling combinator, not :has(): `.detailLogo` PRECEDES
+   `.detailPageWrapperContainer` under `#itemDetailPage`, so `~` reaches the
+   title with no relational selector at all.
+   Scoped to ≥1101px and layout-desktop because that is precisely where stock
+   would have shown a logo (`@media (max-width:68.75em){.detailLogo{display:none}}`
+   plus the mobile/tv hide) — below it the logo never renders, so `.hide` is not
+   the question and the h1 above is the right size. */
+@media (min-width: 1101px) {
+    html.layout-desktop #itemDetailPage .detailLogo.hide ~ .detailPageWrapperContainer .nameContainer h1.itemName,
+    html.layout-desktop #itemDetailPage .detailLogo.hide ~ .detailPageWrapperContainer .nameContainer h1.parentName {
+        font: var(--jflix-type-display);
+        letter-spacing: -0.022em;
+    }
+}
+
+/* ============================================================================
+ * H. METADATA ROW (§3.9 "Metadata row")
+ * `font: --jflix-type-body-sm`, `--jflix-text-secondary`, 12px rhythm, items
+ * separated by a 4px rgba(255,255,255,.4) dot.
+ *
+ * The dot is an ABSOLUTELY POSITIONED `::before` sitting in the 12px gap, not
+ * an inline one: three of the six meta items are bordered or background-image
+ * chips (`.mediaInfoText` has `border:1px solid`, `.mediaInfoCriticRating*`
+ * carries a background SVG with 1.5em of left padding), and an inline pseudo
+ * would render INSIDE the pill. Positioned in the gap, it works for all six.
+ * `margin-top:-2px` instead of a transform — half of a 4px dot, no compositing.
+ * ========================================================================== */
+
+#itemDetailPage .itemMiscInfo {
+    font: var(--jflix-type-body-sm);
+    color: var(--jflix-text-secondary);
+}
+
+/* Stock `[dir] .mediaInfoItem{margin:0 1em 0 0}` is (0,2,0) — matched at (1,2,0). */
+[dir="ltr"] #itemDetailPage .itemMiscInfo .mediaInfoItem {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    margin: 0 var(--jflix-space-3) 0 0;
+}
+
+[dir="rtl"] #itemDetailPage .itemMiscInfo .mediaInfoItem {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    margin: 0 0 0 var(--jflix-space-3);
+}
+
+[dir="ltr"] #itemDetailPage .itemMiscInfo .mediaInfoItem + .mediaInfoItem::before {
+    content: "";
+    position: absolute;
+    left: -8px;
+    top: 50%;
+    margin-top: -2px;
+    width: 4px;
+    height: 4px;
+    border-radius: var(--jflix-radius-circle);
+    background-color: rgba(255, 255, 255, .4);
+}
+
+[dir="rtl"] #itemDetailPage .itemMiscInfo .mediaInfoItem + .mediaInfoItem::before {
+    content: "";
+    position: absolute;
+    right: -8px;
+    top: 50%;
+    margin-top: -2px;
+    width: 4px;
+    height: 4px;
+    border-radius: var(--jflix-radius-circle);
+    background-color: rgba(255, 255, 255, .4);
+}
+
+/* Certification pill (§2.1: --jflix-line-strong is "certification pill border").
+   Stock `_theme.scss:388` sets `border-color: inherit`, which would make the
+   pill's border track the text colour — pinned explicitly instead. */
+#itemDetailPage .itemMiscInfo .mediaInfoText {
+    border: 1px solid var(--jflix-line-strong);
+    border-radius: var(--jflix-radius-xs);
+    padding: 1px 6px;
+    color: var(--jflix-text-secondary);
+}
+
+/* LIST 1 survivor: `.starIcon{color:#f2b01e}` (mediainfo.scss:55) is a stock
+   literal the --jf-palette bridge cannot reach. Identical to --jflix-warning in
+   the dark column, so this is a no-op today and a correctness fix on
+   html[data-theme="light"], where --jflix-warning is #9A6700.
+   Scoped to this page on purpose: the same literal is on every card and is the
+   cards module's to own there. */
+#itemDetailPage .starRatingContainer .starIcon {
+    color: var(--jflix-warning);
+    font-size: var(--jflix-icon-md);
+}
+
+/* ============================================================================
+ * I. HERO BUTTONS (§3.9 button table)
+ * Stock: `.detailButton{display:flex; flex-direction:column; margin:0!important;
+ * padding:.7em!important}` plus three `padding-left/right !important` overrides
+ * at 29/32/35em, and `.detailButton-icon{font-size:1.6em!important}`.
+ * Every one of those is matched with !important here, as house rule 3 requires.
+ * ========================================================================== */
+
+#itemDetailPage .mainDetailButtons {
+    margin: var(--jflix-space-5) 0 0;
+    flex-wrap: wrap;
+}
+
+/* Gap without flex `gap` (Chromium 84 / webOS 22 — §2.9's warning applies to
+   every flex container in this theme, not just card rows). */
+[dir="ltr"] #itemDetailPage .detailButton {
+    margin: 0 var(--jflix-space-3) var(--jflix-space-2) 0 !important;
+}
+
+[dir="rtl"] #itemDetailPage .detailButton {
+    margin: 0 0 var(--jflix-space-2) var(--jflix-space-3) !important;
+}
+
+/* Shared: named transitions only (house rule 7), no shadow at rest (§7.1). */
+#itemDetailPage .detailButton {
+    transition:
+        background-color var(--jflix-dur-fast) var(--jflix-ease-exit),
+        border-color var(--jflix-dur-fast) var(--jflix-ease-exit),
+        color var(--jflix-dur-fast) var(--jflix-ease-exit),
+        transform var(--jflix-dur-base) var(--jflix-ease-enter);
+}
+
+/* --- Primary: `.btnPlay` (§0.3 #3 — WHITE, never red) --------------------- */
+/* The fill and the label come from the --jflix-btn-primary-* pair, never from a
+   literal: on html[data-theme="light"] --jflix-text-on-light flips to #FFFFFF,
+   so a hard-coded white fill would render white-on-white (see 00-tokens.css).
+   `flex-direction: row` undoes stock's `column`, which would stack the label
+   UNDER the glyph. `min-width` + `nowrap`, never `width` — Polish labels run
+   20-40% longer (§3.9). */
+#itemDetailPage .btnPlay.detailButton {
+    flex-direction: row;
+    height: var(--jflix-control-h-lg);
+    min-width: var(--jflix-control-h-lg);
+    padding: 0 24px !important;
+    border-radius: var(--jflix-radius-sm);
+    background-color: var(--jflix-btn-primary-bg);
+    color: var(--jflix-text-on-light);
+    font: var(--jflix-type-button-lg);
+    white-space: nowrap;
+}
+
+#itemDetailPage .btnPlay.detailButton .detailButton-icon {
+    font-size: var(--jflix-icon-lg) !important;
+    width: var(--jflix-icon-lg);
+    height: var(--jflix-icon-lg);
+}
+
+/* The button carries NO text node — only `div.detailButton-content > span`.
+   The label is decorative (§2.14): it sits next to the button's own localized
+   `title` attribute, and every string the theme injects is a single
+   retranslation point in 00-tokens.css. */
+#itemDetailPage .btnPlay.detailButton::after {
+    content: var(--jflix-label-play);
+    margin-left: var(--jflix-space-2);
+}
+
+[dir="rtl"] #itemDetailPage .btnPlay.detailButton::after {
+    margin-left: 0;
+    margin-right: var(--jflix-space-2);
+}
+
+/* "Resume" vs "Play": stock never renames the button, it just un-hides
+   `.btnReplay` ("start over") next to it when the item is resumable
+   (index.js:341). One :has(), on its own rule, enhancement only — without it
+   the label stays "Odtwórz", which is not wrong, just less precise. */
+#itemDetailPage .mainDetailButtons:has(.btnReplay:not(.hide)) .btnPlay.detailButton::after {
+    content: var(--jflix-label-resume);
+}
+
+#itemDetailPage .btnPlay.detailButton:hover {
+    background-color: var(--jflix-btn-primary-bg-hover);
+    color: var(--jflix-text-on-light);
+}
+
+/* Stock repaints :focus with --jf-palette-secondary-main (now #FFF, so a white
+   fill under a white label) and, on TV, `.emby-button.show-focus:focus` paints
+   it accent-red at (0,3,0). Both are re-asserted; the ring in 10-global.css §5
+   carries the affordance. */
+#itemDetailPage .btnPlay.detailButton:focus,
+#itemDetailPage .emby-button.btnPlay.detailButton:focus {
+    background-color: var(--jflix-btn-primary-bg);
+    color: var(--jflix-text-on-light);
+}
+
+/* Press is instant, release animates (§2.13). */
+#itemDetailPage .btnPlay.detailButton:active {
+    background-color: var(--jflix-btn-primary-bg-active);
+    transform: scale(.98);
+    transition-duration: 0ms;
+}
+
+#itemDetailPage .btnPlay.detailButton:disabled {
+    background-color: var(--jflix-btn-primary-bg-disabled);
+    color: var(--jflix-text-disabled);
+}
+
+/* --- Secondary: the remaining labelled actions ---------------------------- */
+/* Glass over artwork (§2.5). The label is --jflix-text-primary, NOT
+   --jflix-text-on-light: 00-tokens.css records the §2.17 contradiction — on the
+   light theme --jflix-text-on-light is #FFFFFF and the light glass is
+   rgba(255,255,255,.78), i.e. 1.02:1. --jflix-text-primary is #FFF on dark
+   glass and #0B0B0B on light glass, correct in both. */
+#itemDetailPage .btnReplay.detailButton,
+#itemDetailPage .btnDownload.detailButton,
+#itemDetailPage .btnPlayTrailer.detailButton,
+#itemDetailPage .btnInstantMix.detailButton,
+#itemDetailPage .btnShuffle.detailButton,
+#itemDetailPage .btnSplitVersions.detailButton,
+#itemDetailPage .btnCancelTimer.detailButton,
+#itemDetailPage .btnCancelSeriesTimer.detailButton {
+    height: var(--jflix-control-h-lg);
+    min-width: var(--jflix-control-h-lg);
+    padding: 0 var(--jflix-space-3) !important;
+    border-radius: var(--jflix-radius-sm);
+    background-color: var(--jflix-overlay-glass);
+    color: var(--jflix-text-primary);
+    white-space: nowrap;
+}
+
+#itemDetailPage .btnReplay.detailButton:hover,
+#itemDetailPage .btnDownload.detailButton:hover,
+#itemDetailPage .btnPlayTrailer.detailButton:hover,
+#itemDetailPage .btnInstantMix.detailButton:hover,
+#itemDetailPage .btnShuffle.detailButton:hover,
+#itemDetailPage .btnSplitVersions.detailButton:hover,
+#itemDetailPage .btnCancelTimer.detailButton:hover,
+#itemDetailPage .btnCancelSeriesTimer.detailButton:hover {
+    background-color: var(--jflix-overlay-glass-hover);
+    color: var(--jflix-text-primary);
+}
+
+/* --- Icon circle: `.btnPlaystate`, `.btnUserRating`, `.btnMoreCommands` ---- */
+#itemDetailPage .btnPlaystate.detailButton,
+#itemDetailPage .btnUserRating.detailButton,
+#itemDetailPage .btnMoreCommands.detailButton {
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    padding: 0 !important;
+    border: 2px solid rgba(255, 255, 255, .5);
+    border-radius: var(--jflix-radius-circle);
+    background-color: var(--jflix-overlay-icon);
+    color: var(--jflix-text-primary);
+}
+
+#itemDetailPage .btnPlaystate.detailButton .detailButton-icon,
+#itemDetailPage .btnUserRating.detailButton .detailButton-icon,
+#itemDetailPage .btnMoreCommands.detailButton .detailButton-icon {
+    font-size: var(--jflix-icon-md) !important;
+    width: var(--jflix-icon-md);
+    height: var(--jflix-icon-md);
+}
+
+#itemDetailPage .btnPlaystate.detailButton:hover,
+#itemDetailPage .btnUserRating.detailButton:hover,
+#itemDetailPage .btnMoreCommands.detailButton:hover {
+    border-color: #FFFFFF;
+    background-color: rgba(42, 42, 42, .9);
+}
+
+#itemDetailPage .btnPlaystate.detailButton:active,
+#itemDetailPage .btnUserRating.detailButton:active,
+#itemDetailPage .btnMoreCommands.detailButton:active {
+    transform: scale(.94);
+    transition-duration: 0ms;
+}
+
+/* Selected states (§3.9). Stock paints both from `--jf-palette-error-light`
+   (_theme.scss:557-560) — which the bridge has re-pointed at
+   --jflix-danger-text, i.e. "watched" would read as "error". */
+#itemDetailPage .playstatebutton-icon-played {
+    color: var(--jflix-success);
+}
+
+#itemDetailPage .ratingbutton-icon-withrating {
+    color: var(--jflix-accent);
+}
+
+/* ============================================================================
+ * J. DETAIL SECTIONS — tagline, tags, links, metadata list, track selects
+ * `.overview` is deliberately absent from this whole section (see file header).
+ * ========================================================================== */
+
+#itemDetailPage .tagline {
+    font: var(--jflix-type-h3);
+    color: var(--jflix-text-primary);
+    margin: 0 0 var(--jflix-space-3);
+}
+
+/* `.itemTags` / `.itemExternalLinks` carry an inline
+   `style="margin:.7em 0; font-size:92%"` (index.html:124-125) that beats any
+   non-!important rule, so the size is left alone and only the colour is set —
+   the leading "Znaczniki: " text node is a plain text node inside the div. */
+#itemDetailPage .itemTags,
+#itemDetailPage .itemExternalLinks {
+    color: var(--jflix-text-tertiary);
+}
+
+#itemDetailPage .itemTags a.button-link,
+#itemDetailPage .itemExternalLinks a.button-link {
+    color: var(--jflix-text-secondary);
+}
+
+#itemDetailPage .itemTags a.button-link:hover,
+#itemDetailPage .itemExternalLinks a.button-link:hover {
+    color: var(--jflix-text-primary);
+}
+
+/* Director / writer / studio / genre list. `.detailsGroupItem a.button-link`
+   carries an inline `color: inherit` (ItemDetailsMetadataList.tsx:38), so the
+   links follow the row colour set here — no !important needed. */
+#itemDetailPage .detailsGroupItem {
+    font: var(--jflix-type-body);
+    color: var(--jflix-text-primary);
+}
+
+#itemDetailPage .detailsGroupItem .label {
+    font: var(--jflix-type-body);
+    color: var(--jflix-text-tertiary);
+}
+
+/* Media-source / video / audio / subtitle selects (§3.10 "Season selector"
+   recipe — the same `.emby-select-withcolor` skin). Stock forces
+   `:focus{border-color: --jf-palette-secondary-main !important}` and
+   `[disabled]{background:none!important; border-color:transparent!important;
+   color:inherit!important}` (emby-select.scss:30-34) — both matched. */
+#itemDetailPage .emby-select-withcolor {
+    background-color: var(--jflix-surface-4);
+    border: 1px solid var(--jflix-line-subtle);
+    border-radius: var(--jflix-radius-sm);
+    padding: .4em 2em .4em .8em;
+    color: var(--jflix-text-primary);
+}
+
+#itemDetailPage .emby-select-withcolor:focus {
+    border-color: var(--jflix-line-invert) !important;
+}
+
+#itemDetailPage .emby-select-withcolor[disabled] {
+    background: none !important;
+    border-color: transparent !important;
+    color: inherit !important;
+}
+
+#itemDetailPage .trackSelections .selectLabel {
+    font: var(--jflix-type-label);
+    letter-spacing: 0.01em;
+    color: var(--jflix-text-tertiary);
+}
+
+/* Section headings on the details page. `.sectionTitle` carries no font-size in
+   the base theme, so 10-global.css's bare `h2` rule currently owns it; this
+   pins the details-page sections to --jflix-type-row like every other row
+   heading in the product (§3.4). */
+#itemDetailPage .detailVerticalSection > .sectionTitle,
+#itemDetailPage .collectionItems .sectionTitle {
+    font: var(--jflix-type-row);
+    letter-spacing: -0.006em;
+    color: var(--jflix-text-primary);
+    margin-bottom: var(--jflix-row-title-gap);
+}
+
+/* ============================================================================
+ * K. §3.10 EPISODE / LIST ROWS (`.listItem`, listview.scss)
+ * These rules are NOT scoped to #itemDetailPage: §3.10 owns the `.listItem`
+ * family wherever it appears (season episodes, search results, library list
+ * view), and scoping would leave three other pages on stock.
+ *
+ * DELIBERATE DEVIATION from §3.10's "padding-inline --jflix-gutter": on this
+ * page the list lives inside `.detailPagePrimaryContent`, which is ALREADY at
+ * the gutter, so a second gutter would indent the episode list a full 154px
+ * past the section title it belongs to. The 12px used instead is exactly the
+ * "hover bleeds ~12px past the text on both sides" the same bullet asks for.
+ * SPEC: §3.10 should say "padding-inline 12px; the gutter comes from the page".
+ * ========================================================================== */
+
+.listItem {
+    position: relative;
+    min-height: var(--jflix-list-row-h);
+    border-radius: var(--jflix-radius-sm);
+    transition:
+        background-color var(--jflix-dur-fast) var(--jflix-ease-exit),
+        color var(--jflix-dur-fast) var(--jflix-ease-exit);
+}
+
+/* Stock `[dir] .listItem{padding:.25em .25em .25em .5em}` is (0,2,0). */
+[dir="ltr"] .listItem {
+    padding: var(--jflix-space-2) var(--jflix-space-3);
+}
+
+[dir="rtl"] .listItem {
+    padding: var(--jflix-space-2) var(--jflix-space-3);
+}
+
+/* "hover bleeds ~12px past the text on both sides" (§3.10) — the bleed is a
+   negative margin that cancels the padding above, so the row TEXT stays on the
+   page's --jflix-gutter line (§1.3) and only the hover wash overhangs it.
+   Scoped to #itemDetailPage: here the list always sits inside
+   `.detailPagePrimaryContent`, which carries at least 12px of padding on every
+   profile (gutter on desktop, 5% !important on mobile), so the bleed can never
+   produce a horizontal page scroll. A search or library list may have no such
+   padding, which is why this is not global. */
+#itemDetailPage .listItem {
+    margin-left: calc(-1 * var(--jflix-space-3));
+    margin-right: calc(-1 * var(--jflix-space-3));
+}
+
+.listItem-largeImage {
+    min-height: var(--jflix-list-row-h-lg);
+}
+
+/* Divider, inset by the thumbnail (§3.10). A ::after, not a border, because the
+   inset has to start after the image column; `.listItem` is given `position:
+   relative` above and its stock `contain: layout style` + `overflow: hidden`
+   both keep the pseudo inside the row. */
+.listItem::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background-color: var(--jflix-line-hairline);
+    pointer-events: none;
+}
+
+[dir="ltr"] .listItem-largeImage::after {
+    left: calc(var(--jflix-listthumb-w, 160px) + var(--jflix-space-4) + var(--jflix-space-3));
+}
+
+[dir="rtl"] .listItem-largeImage::after {
+    right: calc(var(--jflix-listthumb-w, 160px) + var(--jflix-space-4) + var(--jflix-space-3));
+}
+
+/* Hover / active / selected. The hover and focus washes already arrive through
+   the bridge (`--jf-palette-action-hover` -> --jflix-overlay-hover), so only
+   press and the now-playing state need a selector. Stock
+   `.listItem:focus{border-radius:.2em}` and
+   `.listItem:focus .secondary{color:inherit !important}` are matched. */
+.listItem:active {
+    background-color: var(--jflix-overlay-press);
+}
+
+.listItem:focus {
+    border-radius: var(--jflix-radius-sm);
+}
+
+/* Selected / now playing — a wash is never the only signal (§2.5). */
+.listItem.selected,
+.listItem.playing {
+    background-color: var(--jflix-overlay-selected);
+}
+
+/* The 3px leading bar is a ::before, not an inset box-shadow: §7.1 gates on
+   "no shadow on any element at rest" and a grep for box-shadow should come back
+   clean outside hover/focus/floating layers. */
+.listItem.selected::before,
+.listItem.playing::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background-color: var(--jflix-accent);
+}
+
+[dir="ltr"] .listItem.selected::before,
+[dir="ltr"] .listItem.playing::before {
+    left: 0;
+}
+
+[dir="rtl"] .listItem.selected::before,
+[dir="rtl"] .listItem.playing::before {
+    right: 0;
+}
+
+.listItem.selected .listItemBodyText,
+.listItem.playing .listItemBodyText {
+    font-weight: 700;
+}
+
+.listItem[disabled] {
+    opacity: .45;
+}
+
+/* --- Thumbnail (§3.10: 160x90, 16:9) -------------------------------------- */
+/* Stock is `19.5vw x 13vw` (374x250 at 1920) — a 1.5:1 crop, not 16:9, and a
+   third of the row width. (0,2,0) here beats `.listItemImage-large` (0,1,0);
+   the `@media (max-width:64em)` block forces `margin-right:0 !important`, which
+   is why the margin below repeats the !important. */
+.listItem .listItemImage-large {
+    width: var(--jflix-listthumb-w, 160px);
+    height: var(--jflix-listthumb-h, 90px);
+    min-width: var(--jflix-listthumb-w, 160px);
+    min-height: var(--jflix-listthumb-h, 90px);
+    border-radius: var(--jflix-radius-tile);
+    background-color: var(--jflix-surface-2);
+    overflow: hidden;
+    transition: transform var(--jflix-dur-fast) var(--jflix-ease-enter);
+}
+
+[dir="ltr"] .listItem .listItemImage-large {
+    margin: 0 var(--jflix-space-4) 0 0 !important;
+}
+
+[dir="rtl"] .listItem .listItemImage-large {
+    margin: 0 0 0 var(--jflix-space-4) !important;
+}
+
+.listItem:hover .listItemImage-large {
+    transform: scale(1.02);
+}
+
+/* The play affordance on the thumb. Stock draws an always-on 82px circle with a
+   permanent `rgba(0,0,0,.4)` wash and a `transition: 200ms ease-out` shorthand,
+   and LIST 1 records its `#00a4dc` hover (listview.scss:158-178) as owned by
+   this module. Rest is a quiet 24px glyph; the wash arrives on hover. */
+.listItem .listItemImageButton {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border-radius: var(--jflix-radius-circle);
+    background-color: transparent;
+    color: var(--jflix-text-primary);
+    opacity: 0;
+    transition:
+        opacity var(--jflix-dur-fast) var(--jflix-ease-exit),
+        background-color var(--jflix-dur-fast) var(--jflix-ease-exit),
+        color var(--jflix-dur-fast) var(--jflix-ease-exit);
+}
+
+.listItem .listItemImageButton .listItemImageButton-icon {
+    font-size: var(--jflix-icon-lg);
+    width: var(--jflix-icon-lg);
+    height: var(--jflix-icon-lg);
+    padding: 0;
+}
+
+.listItem:hover .listItemImageButton,
+.listItem .listItemImageButton:focus {
+    opacity: 1;
+    background-color: rgba(0, 0, 0, .4);
+}
+
+/* Beats `.listItemImageButton:hover{color:#00a4dc; background:rgba(0,164,220,.2);
+   transform:scale(1.2,1.2)}` — a LIST 1 literal with an owner named here. */
+.listItem .listItemImageButton:hover {
+    color: var(--jflix-text-primary);
+    background-color: rgba(0, 0, 0, .55);
+    transform: none;
+}
+
+/* Same literal, same file, same owner: `.listItemIcon:not(.listItemIcon-transparent)`
+   (listview.scss:249) paints a solid #00a4dc disc behind list glyphs. */
+.listItemIcon:not(.listItemIcon-transparent) {
+    background-color: var(--jflix-surface-4);
+    color: var(--jflix-text-primary);
+}
+
+/* Resume bar on the thumb — opaque track (§2.3: a translucent one reads 1.42:1
+   against the red fill). The fill itself comes from `.itemProgressBarForeground`,
+   which the bridge already points at --jflix-accent. */
+.listItem .listItemProgressBar {
+    height: 3px;
+    background-color: var(--jflix-progress-track);
+    border-radius: 0 0 var(--jflix-radius-tile) var(--jflix-radius-tile);
+    overflow: hidden;
+}
+
+/* --- Row text ------------------------------------------------------------- */
+.listItem .listItemBodyText {
+    font: var(--jflix-type-body);
+    color: var(--jflix-text-primary);
+}
+
+.listItem .secondary {
+    font: var(--jflix-type-body-sm);
+    color: var(--jflix-text-tertiary);
+}
+
+/* Two lines desktop, three on a phone (§3.10). */
+.listItem .listItem-overview {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+}
+
+/* A file path is never ellipsised (§3.10). */
+.listItem .listItemBodyText.filePath,
+.listItem .secondary.filePath {
+    font-family: var(--jflix-font-num);
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: normal;
+}
+
+/* Row action buttons keep their stock 50% radius and glyph; only the resting
+   colour is normalised so a row reads as one block of text. */
+.listItem .listItemButton {
+    color: var(--jflix-text-tertiary);
+}
+
+.listItem:hover .listItemButton {
+    color: var(--jflix-text-secondary);
+}
+
+/* The full-width synopsis slot. `listView.js:492` emits the SAME overview text a
+   SECOND time into `.listItem-bottomoverview`, and stock shows exactly one of
+   the two: `.listItem-overview` above 50em, `.listItem-bottomoverview` below it
+   (`@media (min-width:50em){.listItem-bottomoverview{display:none !important}}`).
+   FINDING, and the reason the rule §7.2 asks for is deliberately NOT written:
+   "undo the stock `display:none` on the episode synopsis below 50em" would make
+   the synopsis appear TWICE on a phone — verified live on modern-mobile
+   details-season, where `.listItem-bottomoverview` is already visible and
+   carries the text. The bottom slot is also the better of the two layouts: the
+   in-body one is squeezed into the ~143px left over after the thumbnail and the
+   action cluster. So the synopsis IS visible on mobile, through this element,
+   and it is styled here instead. SPEC: correct §3.10 and the §7.2 bullet. */
+.listItem-bottomoverview {
+    font: var(--jflix-type-body-sm);
+    color: var(--jflix-text-tertiary);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+}
+
+/* UNDO the other half of the same stock block (§1.6: "never display:none an
+   episode synopsis, a filter control, the A-Z rail or a sort/view toggle").
+   `@media (max-width:50em){.listItemMediaInfo{display:none}}` takes the runtime
+   and the community rating off every mobile episode row; (0,2,0) here beats it
+   without !important, because stock did not use one on this property.
+   `:not(.hide)` per house rule 4 — nothing here can resurrect a JS-hidden node.
+   `.endsAt` and `.criticRating` stay hidden on a phone: those two ARE clutter at
+   390px, and stock hid them with !important. */
+@media (max-width: 50em) {
+    .listItem .listItemMediaInfo:not(.hide) {
+        display: flex;
+    }
+}
+
+/* TV thumbnail. Stock adds a `.listItemImage-large-tv` class whose
+   `width:30vw; height:20vw` are BOTH `!important` (576x384 at 1920 — measured),
+   so this is the one place in the file that needs !important on a size. The
+   value itself is the TV column of --jflix-listthumb-* at the top of this file
+   (256x144 = 1.6x the desktop 160x90, the ratio §2.18 uses for its type scale);
+   §3.10 gives no TV number, so it is derived, not transcribed.
+   SPEC: add a TV column to §3.10's thumbnail row. */
+.listItem .listItemImage-large-tv {
+    width: var(--jflix-listthumb-w, 256px) !important;
+    height: var(--jflix-listthumb-h, 144px) !important;
+}
+
+/* TV focus: the ROW is the focus target, not the thumb (§3.10). */
+html.layout-tv .listItem:focus {
+    background-color: var(--jflix-surface-3);
+    box-shadow: var(--jflix-focus-ring-tv);
+}
+
+/* ============================================================================
+ * L. §3.11 CAST (`.personCard`, `#castCollapsible`)
+ * Stock renders cast as ordinary 2:3 `overflowPortraitCard`s; only the
+ * purplehaze theme rounds them. Netflix (and every media UI since) shows a
+ * circle of the face with the name under it.
+ *
+ * The circle has to be applied to `.cardPadder`, `.cardImageContainer`, the
+ * injected `canvas.blurhash-canvas` AND `.cardOverlayContainer` together, or
+ * the placeholder and the hover wash flash square corners while the portrait
+ * loads (imageLoader.js inserts the canvas BEFORE the image element).
+ * ========================================================================== */
+
+/* Cast tiles are --jflix-tiles + 2 per row (§3.11). `.card.personCard` is
+   (0,2,0) and beats the cards module's `.overflowPortraitCard` (0,1,0); this
+   file also concatenates after it, so both cascade paths agree. */
+.card.personCard {
+    width: calc(100% / (var(--jflix-tiles) + 2));
+}
+
+/* Square the 2:3 padder so 50% is a circle and not an ellipse.
+   `.cardPadder-overflowPortrait` is (0,1,0); this is (0,2,0). */
+.personCard .cardPadder-overflowPortrait {
+    padding-bottom: 100%;
+}
+
+.personCard .cardScalable,
+.personCard .cardPadder,
+.personCard .cardImageContainer,
+.personCard .blurhash-canvas,
+.personCard .cardOverlayContainer {
+    border-radius: var(--jflix-radius-circle);
+}
+
+/* Plate. Stock `.cardBox:not(.visualCardBox) .cardPadder{background:#202020}`
+   is (0,3,0) — a LIST 1 literal — so this is matched at (0,3,0) and wins on
+   source order. §3.11 assigns --jflix-surface-2. */
+.personCard .cardBox .cardPadder {
+    background-color: var(--jflix-surface-2);
+}
+
+.personCard .cardBox .cardPadder .cardImageIcon {
+    color: var(--jflix-text-disabled);
+}
+
+/* Captions ALWAYS visible here — a circle of a face with no name is useless
+   (§3.11). Nothing in this file hides them; the sizes and colours are pinned so
+   a later home-rows rule that fades captions cannot reach a person card. */
+.personCard .cardText-first {
+    font: var(--jflix-type-body-sm);
+    color: var(--jflix-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 1;
+    visibility: visible;
+}
+
+.personCard .cardText-secondary {
+    font: var(--jflix-type-body-sm);
+    color: var(--jflix-text-tertiary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 1;
+    visibility: visible;
+}
+
+.personCard .cardText-first a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.personCard .cardText-first a:hover {
+    text-decoration: underline;
+}
+
+/* Hover: scale 1.06 + elev-3 (§3.11). Gated on a real pointer so a touch tap
+   never leaves a card stuck in the hover state, and off on TV, where stock's
+   `scale(1.07)` focus is THE card motion (§4.5). */
+@media (hover: hover) and (pointer: fine) {
+    html:not(.layout-tv) .personCard .cardScalable {
+        transition:
+            transform var(--jflix-dur-base) var(--jflix-ease-emphasis),
+            box-shadow var(--jflix-dur-fast) var(--jflix-ease-exit);
+    }
+
+    html:not(.layout-tv) .personCard:hover .cardScalable {
+        transform: scale(1.06);
+        box-shadow: var(--jflix-elev-3);
+    }
+}
+
+/* ============================================================================
+ * M. MOBILE (html.layout-mobile — UA/touch, NOT width: an 820px tablet is here)
+ * The mobile hero is a genuinely different mechanism: `#itemBackdrop` carries
+ * the real image, the poster is absolutely pinned to the ribbon's bottom-left,
+ * and `.infoWrapper` / `.mainDetailButtons` get the stock `header-poster-padding`
+ * to clear it. That layout is kept; only the opaque band and the type change.
+ *
+ * NOT TOUCHED, and verified rather than re-declared:
+ * `.layout-mobile .itemBackdrop{margin-top:-48px !important}`
+ * (AppOverrides.scss:33-35) must stay matched to --jflix-bar-h, which
+ * 00-tokens.css pins to 48px on every html.layout-mobile device at any width.
+ * ========================================================================== */
+
+html.layout-mobile #itemDetailPage .detailRibbon {
+    background-color: transparent;
+    background-image: none;
+}
+
+/* Stock `.layout-mobile h1.itemName, .layout-mobile h1.parentName{font-size:1.6em}`
+   is (0,2,0); this is (1,2,1). §3.9's mobile fallback is --jflix-type-h1, and on
+   mobile it is ALWAYS the fallback: stock never shows `.detailLogo` here. */
+html.layout-mobile #itemDetailPage .nameContainer h1.itemName,
+html.layout-mobile #itemDetailPage .nameContainer h1.parentName {
+    font: var(--jflix-type-h1);
+    letter-spacing: -0.018em;
+    -webkit-line-clamp: 3;
+}
+
+html.layout-mobile #itemDetailPage .nameContainer h3.itemName.subtitle {
+    font: var(--jflix-type-h3);
+    letter-spacing: 0;
+}
+
+/* The poster keeps its stock drop-shadow (it is a floating object over
+   artwork), but picks up the tile radius so it matches every other poster. */
+html.layout-mobile #itemDetailPage .detailImageContainer .card .cardImageContainer,
+html.layout-mobile #itemDetailPage .detailImageContainer .card .cardPadder,
+html.layout-mobile #itemDetailPage .detailImageContainer .card .blurhash-canvas {
+    border-radius: var(--jflix-radius-tile);
+}
+
+/* The button row is centred by stock at (0,2,0) and full-width below 32em;
+   the primary keeps its 48px height and the circles stay 42px, so the row is a
+   comfortable touch target without any width games. */
+html.layout-mobile #itemDetailPage .mainDetailButtons {
+    justify-content: center;
+    margin-top: var(--jflix-space-4);
+}
+
+/* ============================================================================
+ * N. TV (html.layout-tv)
+ * Stock hides `#itemBackdrop` entirely here, so there is no revealed hero: the
+ * TV page is the poster-left / text-right layout in the baseline and section D
+ * never fires (it is `html.layout-desktop`-scoped). What TV needs is the
+ * transparent ribbon, the type scale from §2.18, and focus that is visible from
+ * three metres.
+ * ========================================================================== */
+
+html.layout-tv #itemDetailPage .detailRibbon {
+    background-color: transparent;
+    background-image: none;
+}
+
+/* §2.18 already re-points --jflix-type-h1 to 48px and --jflix-type-body-sm to
+   18px on html.layout-tv, so the rules in sections G/H pick TV sizes up for
+   free. Only the button metrics need a TV column: §5.2's TV minimum is 48px
+   and the 42px circles would miss it. */
+html.layout-tv #itemDetailPage .btnPlay.detailButton {
+    height: var(--jflix-control-h);
+    min-width: var(--jflix-control-h);
+    font: var(--jflix-type-button);
+}
+
+html.layout-tv #itemDetailPage .btnPlaystate.detailButton,
+html.layout-tv #itemDetailPage .btnUserRating.detailButton,
+html.layout-tv #itemDetailPage .btnMoreCommands.detailButton {
+    width: var(--jflix-control-h);
+    height: var(--jflix-control-h);
+    min-width: var(--jflix-control-h);
+}
+
+html.layout-tv #itemDetailPage .btnReplay.detailButton,
+html.layout-tv #itemDetailPage .btnDownload.detailButton,
+html.layout-tv #itemDetailPage .btnPlayTrailer.detailButton,
+html.layout-tv #itemDetailPage .btnInstantMix.detailButton,
+html.layout-tv #itemDetailPage .btnShuffle.detailButton,
+html.layout-tv #itemDetailPage .btnSplitVersions.detailButton,
+html.layout-tv #itemDetailPage .btnCancelTimer.detailButton,
+html.layout-tv #itemDetailPage .btnCancelSeriesTimer.detailButton {
+    height: var(--jflix-control-h);
+    min-width: var(--jflix-control-h);
+}
+
+/* Stock `.emby-button.show-focus:focus{background: --jf-palette-primary-main}`
+   is (0,3,0) and the bridge has made primary-main the accent, so on TV the
+   default-focused Play button would paint accent-red under a dark label.
+   Re-asserted at (1,3,0); the ring from 10-global.css carries the affordance,
+   and §4.5's `scale(1.06)` is added here rather than there because only the
+   detail buttons are 48px targets on a 10-foot screen. */
+html.layout-tv #itemDetailPage .emby-button.btnPlay.detailButton:focus {
+    background-color: var(--jflix-btn-primary-bg);
+    color: var(--jflix-text-on-light);
+    transform: scale(1.06);
+}
+
+html.layout-tv #itemDetailPage .emby-button.btnPlaystate.detailButton:focus,
+html.layout-tv #itemDetailPage .emby-button.btnUserRating.detailButton:focus,
+html.layout-tv #itemDetailPage .emby-button.btnMoreCommands.detailButton:focus {
+    background-color: var(--jflix-overlay-icon);
+    border-color: #FFFFFF;
+    transform: scale(1.08);
+}
+
+html.layout-tv #itemDetailPage .emby-button.btnReplay.detailButton:focus,
+html.layout-tv #itemDetailPage .emby-button.btnDownload.detailButton:focus,
+html.layout-tv #itemDetailPage .emby-button.btnPlayTrailer.detailButton:focus,
+html.layout-tv #itemDetailPage .emby-button.btnInstantMix.detailButton:focus,
+html.layout-tv #itemDetailPage .emby-button.btnShuffle.detailButton:focus,
+html.layout-tv #itemDetailPage .emby-button.btnSplitVersions.detailButton:focus {
+    background-color: var(--jflix-overlay-glass);
+    color: var(--jflix-text-primary);
+    transform: scale(1.06);
+}
+
+/* ============================================================================
+ * O. REDUCED MOTION
+ * 00-tokens.css already zeroes --jflix-zoom-* and the durations under
+ * `prefers-reduced-motion`, and the blanket
+ * `*{animation-duration:.01ms!important}` rule belongs to the last module in
+ * §0.2's file order. The only motion this file introduces that is not driven by
+ * a duration token is the two hover/focus `transform`s, so they are switched
+ * off explicitly and replaced with the §4.4 affordance (a brightness lift).
+ * ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+    .listItem:hover .listItemImage-large,
+    .personCard:hover .cardScalable {
+        transform: none;
+    }
+
+    .personCard:hover .cardScalable {
+        filter: brightness(1.12);
+    }
+}
+
+/* ============================================================================
+ * CROSS-MODULE — reported, not written here (file ownership is strict)
+ *
+ * 1. §3.9 "Hero under the bar" asks for
+ *      body:has(#itemDetailPage:not(.hide)) header.MuiAppBar-root + div[aria-hidden="true"]
+ *        { height: 0 !important; }
+ *    That is the SHELL module's element (the MUI AppBar's offset spacer, sized
+ *    by OffsetAppBar's ResizeObserver), and zeroing it unscoped would fight the
+ *    stock `.layout-mobile .itemBackdrop{margin-top:-48px !important}` and cut
+ *    48px off the top of the mobile backdrop. It must be
+ *    `html.layout-desktop`-scoped when the shell module writes it.
+ * 2. `.starIcon{color:#f2b01e}` and `.playedIndicator` / `.fullSyncIndicator`
+ *    also appear on cards; only the details-page instances are claimed here.
+ * 3. `.sectionTitle` sizing is claimed for `#itemDetailPage` only; the global
+ *    bare-`h2` fallback in 10-global.css still owns it elsewhere.
+ * ========================================================================== */

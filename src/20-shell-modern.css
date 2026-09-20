@@ -1,0 +1,772 @@
+/* ============================================================================
+ * JellyFlix — 20-shell-modern.css
+ * Modern layout shell: §3.1 (app bar) + §3.3 (MuiDrawer) + the two hard-coded
+ * offsets §3.1 makes mandatory when the bar leaves 48px.
+ *
+ * Scope discipline
+ *   - Everything is anchored on `header.MuiAppBar-root` or `.MuiDrawer-*`.
+ *     The legacy `.skinHeader` / `.mainDrawer` live in a display:none wrapper
+ *     inside the modern DOM and belong to 30-shell-legacy.css — not touched here.
+ *   - The two app-bar rows are told apart STRUCTURALLY
+ *     (`> .MuiToolbar-root:first-child` = AppToolbar,
+ *      `> .MuiToolbar-root:nth-child(2)` = LibraryToolbar), never by the
+ *     emotion hashes css-1tmqktv / css-133e01t (house rule 0.2#4).
+ *   - The three Box children of the AppToolbar are also structural. Verified
+ *     against components/toolbar/AppToolbar.tsx:81-90: the actions Box is
+ *     ALWAYS rendered and the avatar Box only when the path is not public —
+ *     and a public path hides the action buttons too. So on a normal page
+ *     `:last-child` is the avatar wrapper and `:nth-last-child(2)` the action
+ *     group, and on /login the avatar selectors (which all require a
+ *     `> .MuiIconButton-root`) match an empty Box and do nothing.
+ *
+ * The page gutter is NOT re-declared here: 10-global.css §7 already writes
+ *   [dir="ltr"] .padded-left{padding-left:max(var(--jflix-gutter), env(...))}
+ * at (0,2,0), which beats MUI's `.MuiToolbar-gutters` (0,1,0). Measured on the
+ * toolbar: padding-left 76.797px at 1920 = the 4% line. §3.1's (0,3,0) form is
+ * only needed if something later out-specifies it; nothing does.
+ * ========================================================================== */
+
+/* ----------------------------------------------------------------------------
+ * 1. App-bar geometry (§3.1, §0.3 #14)
+ * Height comes from `min-height` on the FIRST toolbar only. The spacer
+ * `header.MuiAppBar-root + div[aria-hidden="true"]` is re-measured by
+ * OffsetAppBar's ResizeObserver (components/OffsetAppBar.tsx:35-63, reading
+ * `entry.contentRect.height`) and follows on its own — its inline height is
+ * never touched here (house rule 0.2#4). Never fake the height with a
+ * transform: the observer reads the layout box.
+ *
+ * MUI's dense rule is `<emotion-hash>{min-height:48px}` at (0,1,0);
+ * `header.MuiAppBar-root > .MuiToolbar-root:first-child` is (0,3,1) and wins.
+ *
+ * --jflix-bar-h resolves to 64 on a layout-desktop window >=1000px, 56 on a
+ * layout-desktop window 600-999px, and 48 on EVERY html.layout-mobile device
+ * at any width (00-tokens.css pins it there so the -48px mobile backdrop
+ * compensation in §10 below stays exact on an 820px tablet, which reports
+ * layout-mobile).
+ * -------------------------------------------------------------------------- */
+
+header.MuiAppBar-root > .MuiToolbar-root:first-child {
+    min-height: var(--jflix-bar-h);
+}
+
+/* The library row keeps the stock 48px (§3.12 "height --jflix-bar-h-2 (48)").
+   min-height, not height: below 600px the row wraps its controls onto a second
+   line and must stay free to grow. */
+header.MuiAppBar-root > .MuiToolbar-root:nth-child(2) {
+    min-height: var(--jflix-bar-h-2);
+}
+
+/* ----------------------------------------------------------------------------
+ * 2. Scroll state — transparent + top scrim ⇄ solid (§3.1 state table)
+ *
+ * The class swap already exists: MUI's useScrollTrigger (threshold 0,
+ * hysteresis off) writes MuiAppBar-colorTransparent ⇄ MuiAppBar-colorDefault
+ * and MuiPaper-elevation0 ⇄ -elevation1 at scrollTop > 0 (verified live at
+ * --scroll 700). A `background-image` gradient never transitions, so the scrim
+ * lives on a ::before whose OPACITY transitions.
+ *
+ * `header` is position:fixed with z-index:1100, i.e. its own stacking context,
+ * so a z-index:-1 child paints ABOVE the header's own background colour and
+ * BELOW the toolbar content — exactly what the state table needs.
+ *
+ * The scrim is never taken to 0: a binary 0→1 opacity jump is visible, while
+ * holding it at .35 turns the swap into a deepening. 140px tall (§2.6), so it
+ * overhangs the 64px bar by 76px and fades out over the page.
+ * -------------------------------------------------------------------------- */
+
+header.MuiAppBar-root {
+    /* MUI paints its elevation overlay as a background-image gradient; the
+       scrim replaces it. (0,2,0) beats the emotion rule at (0,1,0). */
+    background-image: none;
+    transition:
+        background-color var(--jflix-dur-nav) var(--jflix-ease-exit),
+        box-shadow var(--jflix-dur-nav) var(--jflix-ease-exit);
+}
+
+header.MuiAppBar-root::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 140px;
+    z-index: -1;
+    pointer-events: none;
+    background: var(--jflix-scrim-top);
+    opacity: 1;
+    transition: opacity var(--jflix-dur-nav) var(--jflix-ease-exit);
+}
+
+/* §2.6 geometry: the top scrim is 96px on a phone. */
+@media (max-width: 599px) {
+    header.MuiAppBar-root::before {
+        height: 96px;
+    }
+}
+
+/* Rest — scrollTop 0. Re-asserted rather than left to MUI so the transition
+   above has a declared start value on both sides of the swap. */
+header.MuiAppBar-root.MuiAppBar-colorTransparent {
+    background-color: transparent;
+}
+
+/* Scrolled. (0,2,1) beats MUI's emotion rule and kills its
+   linear-gradient(rgba(255,255,255,.05),…) elevation wash.
+   The shadow is a STATE, not a rest style: 00-tokens.css sets
+   --jf-shadows-1: none precisely so nothing casts a shadow at rest, and the
+   app only adds MuiPaper-elevation1 once the user has scrolled (§7.1). */
+header.MuiAppBar-root.MuiAppBar-colorDefault {
+    background-color: var(--jflix-surface-0);
+    background-image: none;
+    box-shadow: var(--jflix-elev-1);
+}
+
+header.MuiAppBar-root.MuiAppBar-colorDefault::before {
+    opacity: .35;
+}
+
+/* ----------------------------------------------------------------------------
+ * 3. Scroll-driven cross-fade — ENHANCEMENT ONLY (§6.2, §0.2 #8)
+ * The class swap in §2 is binary at scrollTop > 0; §7.2 asks for a 400ms
+ * cross-fade with no visible flash, which the transition already delivers.
+ * Where scroll-driven animations exist we can do better and ramp the bar over
+ * the first 140px of travel instead of jumping at pixel 1.
+ *
+ * Both state classes get the same animation so the swap that fires at pixel 1
+ * cannot cause a step: the animation is the authority inside this block.
+ * Safety: if no scroll container is found, or the container's scroll range is
+ * zero, the timeline is INACTIVE, the animation produces no effect, and the
+ * §2 declarations show through unchanged. `nearest` (not `root`) because the
+ * page scroller is <body>, not the documentElement.
+ * -------------------------------------------------------------------------- */
+
+@keyframes jflix-appbar-solidify {
+    from {
+        background-color: transparent;
+    }
+
+    to {
+        background-color: var(--jflix-surface-0);
+    }
+}
+
+@keyframes jflix-appbar-scrim {
+    from {
+        opacity: 1;
+    }
+
+    to {
+        opacity: .35;
+    }
+}
+
+@supports (animation-timeline: scroll(nearest block)) {
+    header.MuiAppBar-root.MuiAppBar-colorTransparent,
+    header.MuiAppBar-root.MuiAppBar-colorDefault {
+        animation: jflix-appbar-solidify linear both;
+        animation-timeline: scroll(nearest block);
+        animation-range: 0 140px;
+    }
+
+    header.MuiAppBar-root.MuiAppBar-colorTransparent::before,
+    header.MuiAppBar-root.MuiAppBar-colorDefault::before {
+        animation: jflix-appbar-scrim linear both;
+        animation-timeline: scroll(nearest block);
+        animation-range: 0 140px;
+    }
+}
+
+/* ----------------------------------------------------------------------------
+ * 4. Wordmark slot (§3.1 row 1, §1.3 the single alignment line)
+ * Markup is `a.MuiButton-root[href="#/"]` = ServerButton: a Jellyfin PNG in
+ * `.MuiButton-startIcon` plus the server name as real text. CSS cannot swap the
+ * PNG for the server's own branding image, so the honest Netflix reading is to
+ * drop the icon and set the server name as the wordmark.
+ *
+ * The button's own 11px padding-left is zeroed so the wordmark's first glyph
+ * lands exactly on the --jflix-gutter line the toolbar already carries — this
+ * is the left edge every row title and first tile must share (§7.2 Home).
+ *
+ * Accent-as-text is legal here and ONLY here: the wordmark is §2.3 accent slot
+ * #1, and at 22px/800 it is "large text", where #E11D2E on #0B0B0B (4.14:1)
+ * clears the 3:1 bar with room to spare. It is deliberately NOT uppercased —
+ * §2.14 forbids uppercasing strings over 14 characters and a server name is
+ * arbitrary user input.
+ * (0,2,2), so it beats 10-global.css's `.MuiButton-root` recipe at (0,1,0).
+ * -------------------------------------------------------------------------- */
+
+header.MuiAppBar-root a.MuiButton-root[href="#/"] {
+    min-height: 26px;
+    margin: 0 var(--jflix-space-7) 0 0;
+    padding: 0;
+    color: var(--jflix-accent);
+    font: 800 22px/26px var(--jflix-font);
+    letter-spacing: -0.03em;
+    text-transform: none;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: color var(--jflix-dur-fast) var(--jflix-ease-exit);
+}
+
+header.MuiAppBar-root a.MuiButton-root[href="#/"]:hover {
+    color: var(--jflix-accent-hover);
+    background-color: transparent;
+}
+
+/* The stock PNG carries an INLINE max-height/max-width:1.25em
+   (components/toolbar/ServerButton.tsx:24-27), so the wrapper is hidden rather
+   than the image. Not a `.hide` element — no JS toggle is being resurrected. */
+header.MuiAppBar-root a.MuiButton-root[href="#/"] .MuiButton-startIcon {
+    display: none;
+}
+
+/* ----------------------------------------------------------------------------
+ * 5. Nav links (§3.1 row 2 of the contents table)
+ * Markup: `<Stack spacing={0.5}>` holding the ServerButton and the UserViewNav
+ * buttons. The Stack's own 4px column-gap is zeroed so §3.1's 32px (wordmark)
+ * and 18px (links) are the whole story and the spacing is not build-dependent.
+ *
+ * The Stack is scoped to the FIRST toolbar: the LibraryToolbar row carries a
+ * `.MuiStack-root` of its own around the play/filter/sort button groups, and
+ * an unscoped `.MuiStack-root .MuiButton-root` would repaint those.
+ *
+ * `:not([href="#/"])` excludes the wordmark. It is load-bearing for the
+ * cascade, not decoration: the rest rule is (0,6,1) and would otherwise
+ * out-specify the (0,2,2) wordmark block above.
+ *
+ * SELECTED is the state 10-global.css warned about: its
+ * `.MuiButton-textPrimary{color:--jflix-text-primary}` (correct per §2.3 —
+ * accent-as-text is forbidden) erased the only channel that said "you are
+ * here". §3.1 requires TWO channels and §5.3 forbids dropping one, so the
+ * selected link gets weight 700 AND a 2px accent bar; the pair survives
+ * greyscale and colour-blindness.
+ * -------------------------------------------------------------------------- */
+
+header.MuiAppBar-root > .MuiToolbar-root:first-child .MuiStack-root {
+    column-gap: 0;
+}
+
+/* Rest (0,6,1) */
+header.MuiAppBar-root > .MuiToolbar-root:first-child .MuiStack-root > .MuiButton-root:not([href="#/"]) {
+    position: relative;
+    min-height: var(--jflix-control-h);
+    margin-left: 18px;
+    padding: 0 4px;
+    color: var(--jflix-text-secondary);
+    font: var(--jflix-type-body);
+    letter-spacing: 0;
+    text-transform: none;
+    text-decoration: none;
+    border-radius: var(--jflix-radius-sm);
+    transition:
+        color var(--jflix-dur-fast) var(--jflix-ease-exit),
+        opacity var(--jflix-dur-instant) var(--jflix-ease-exit);
+}
+
+/* §3.1: "no icon". Netflix's nav is words only, and the library glyphs are the
+   loudest non-accent colour in the bar. */
+header.MuiAppBar-root > .MuiToolbar-root:first-child .MuiStack-root > .MuiButton-root:not([href="#/"]) .MuiButton-startIcon {
+    display: none;
+}
+
+/* The "More" overflow button keeps its caret — it is an affordance, not
+   decoration — but at the nav's own scale. */
+header.MuiAppBar-root > .MuiToolbar-root:first-child .MuiStack-root > .MuiButton-root:not([href="#/"]) .MuiButton-endIcon {
+    margin-left: var(--jflix-space-1);
+}
+
+header.MuiAppBar-root > .MuiToolbar-root:first-child .MuiStack-root > .MuiButton-root:not([href="#/"]) .MuiSvgIcon-root {
+    font-size: var(--jflix-icon-md);
+}
+
+/* Hover (0,7,1) — colour only, no background (§3.1 "no bg change" is the focus
+   row; the reference's nav hover is also a pure colour lift). */
+header.MuiAppBar-root > .MuiToolbar-root:first-child .MuiStack-root > .MuiButton-root:not([href="#/"]):hover {
+    color: var(--jflix-text-primary);
+    background-color: transparent;
+}
+
+/* Active — 80ms, opacity only (§2.13: press is instant, release animates). */
+header.MuiAppBar-root > .MuiToolbar-root:first-child .MuiStack-root > .MuiButton-root:not([href="#/"]):active {
+    opacity: .7;
+    transition-duration: 0ms;
+}
+
+/* Disabled */
+header.MuiAppBar-root > .MuiToolbar-root:first-child .MuiStack-root > .MuiButton-root:not([href="#/"]).Mui-disabled {
+    color: var(--jflix-text-disabled);
+    pointer-events: none;
+}
+
+/* Selected (0,7,1) — written AFTER :hover so it wins the tie and a hovered
+   current link keeps its weight. The discriminator is MUI's own colorPrimary,
+   set by UserViewNav.tsx:128,158 on the view that matches the route. */
+header.MuiAppBar-root > .MuiToolbar-root:first-child .MuiStack-root > .MuiButton-root.MuiButton-colorPrimary:not([href="#/"]) {
+    color: var(--jflix-text-primary);
+    font-weight: 700;
+}
+
+header.MuiAppBar-root > .MuiToolbar-root:first-child .MuiStack-root > .MuiButton-root.MuiButton-colorPrimary:not([href="#/"])::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    border-radius: 2px 2px 0 0;
+    background-color: var(--jflix-accent);
+}
+
+/* TV focus (§3.1 last column). The ring itself comes from 10-global.css §5
+   (`html.layout-tv a:focus` etc.); only the 1.04 lift is added here. */
+html.layout-tv header.MuiAppBar-root > .MuiToolbar-root:first-child .MuiStack-root > .MuiButton-root:focus {
+    color: var(--jflix-text-primary);
+    transform: scale(1.04);
+    transition: transform 180ms var(--jflix-ease-enter);
+}
+
+/* ----------------------------------------------------------------------------
+ * 6. Action icon buttons — hamburger / SyncPlay / Cast / Search (§3.1 row 3)
+ * Two anchors, both structural:
+ *   `> .MuiIconButton-root`               the hamburger (direct toolbar child,
+ *                                          rendered only below md 900)
+ *   `> .MuiBox-root:nth-last-child(2) …`  the right-hand action group
+ * Stock renders them at MuiIconButton-sizeLarge = 46x46 with a 22px glyph;
+ * §3.1 wants 40x40 with --jflix-icon-md (20px).
+ * -------------------------------------------------------------------------- */
+
+header.MuiAppBar-root > .MuiToolbar-root:first-child > .MuiIconButton-root,
+header.MuiAppBar-root > .MuiToolbar-root:first-child > .MuiBox-root:nth-last-child(2) .MuiIconButton-root {
+    width: 40px;
+    height: 40px;
+    padding: 10px;
+    color: var(--jflix-text-secondary);
+    border-radius: var(--jflix-radius-circle);
+    transition:
+        color var(--jflix-dur-fast) var(--jflix-ease-exit),
+        background-color var(--jflix-dur-fast) var(--jflix-ease-exit),
+        transform var(--jflix-dur-base) var(--jflix-ease-enter);
+}
+
+header.MuiAppBar-root > .MuiToolbar-root:first-child > .MuiIconButton-root .MuiSvgIcon-root,
+header.MuiAppBar-root > .MuiToolbar-root:first-child > .MuiBox-root:nth-last-child(2) .MuiSvgIcon-root {
+    font-size: var(--jflix-icon-md);
+}
+
+/* Hover — the circle fill already comes from 10-global.css
+   (`.MuiIconButton-root:hover{background-color:--jflix-overlay-hover}`); only
+   the icon colour is added. */
+header.MuiAppBar-root > .MuiToolbar-root:first-child > .MuiIconButton-root:hover,
+header.MuiAppBar-root > .MuiToolbar-root:first-child > .MuiBox-root:nth-last-child(2) .MuiIconButton-root:hover {
+    color: var(--jflix-text-primary);
+}
+
+header.MuiAppBar-root > .MuiToolbar-root:first-child > .MuiIconButton-root:active,
+header.MuiAppBar-root > .MuiToolbar-root:first-child > .MuiBox-root:nth-last-child(2) .MuiIconButton-root:active {
+    transform: scale(.94);
+    transition-duration: 0ms;
+}
+
+/* The search button carries .Mui-disabled while the user is already on
+   /search. MUI's own disabled colour comes from --jf-palette-action-disabled
+   (set in the bridge); §3.1 asks for opacity .4 on top. */
+header.MuiAppBar-root > .MuiToolbar-root:first-child > .MuiBox-root:nth-last-child(2) .MuiIconButton-root.Mui-disabled {
+    opacity: .4;
+}
+
+/* TV focus (§3.1). */
+html.layout-tv header.MuiAppBar-root > .MuiToolbar-root:first-child > .MuiIconButton-root:focus,
+html.layout-tv header.MuiAppBar-root > .MuiToolbar-root:first-child > .MuiBox-root:nth-last-child(2) .MuiIconButton-root:focus {
+    color: var(--jflix-text-primary);
+    background-color: var(--jflix-overlay-hover);
+}
+
+/* §5.2 hit targets. §3.1's 40x40 is the MOUSE size (its row is 32x32 minimum);
+   on `pointer: coarse` the minimum is 44x44 with 8px between targets, and
+   stock's own 46x46 already met it — shrinking to 40 without this block would
+   be a regression on every phone and tablet. The glyph keeps its 20px visual
+   size; only the padding grows. */
+@media (pointer: coarse) {
+    header.MuiAppBar-root > .MuiToolbar-root:first-child > .MuiIconButton-root,
+    header.MuiAppBar-root > .MuiToolbar-root:first-child > .MuiBox-root:nth-last-child(2) .MuiIconButton-root {
+        width: var(--jflix-touch-min);
+        height: var(--jflix-touch-min);
+        padding: 12px;
+    }
+
+    header.MuiAppBar-root > .MuiToolbar-root:first-child > .MuiBox-root:nth-last-child(2) {
+        gap: var(--jflix-space-2);
+    }
+}
+
+/* ----------------------------------------------------------------------------
+ * 7. User avatar (§3.1 row 4) — and LIST 2 of 00-tokens.css
+ * The --jf-palette-primary-main bridge turns UserAvatar's fallback background
+ * (`primary.dark`) into rgb(179,18,31): measured on every page and profile,
+ * the single most prominent red in the UI. An avatar is not one of §2.3's five
+ * accent slots, so it is repainted to the neutral field fill.
+ *
+ * Geometry: 32x32 rounded SQUARE (--jflix-radius-sm), not the stock circle —
+ * the rounded-square profile tile is the reference's signature.
+ *
+ * The caret §3.1 asks for does not exist in the markup; it is drawn as an
+ * ::after on the avatar BUTTON (not on the avatar itself, which is
+ * overflow:hidden around the image). "6px caret" is read as its height.
+ * -------------------------------------------------------------------------- */
+
+header.MuiAppBar-root > .MuiToolbar-root:first-child > .MuiBox-root:last-child > .MuiIconButton-root {
+    display: flex;
+    align-items: center;
+    gap: var(--jflix-space-2);
+    padding: 0;
+    border-radius: var(--jflix-radius-sm);
+}
+
+header.MuiAppBar-root > .MuiToolbar-root:first-child > .MuiBox-root:last-child > .MuiIconButton-root::after {
+    content: "";
+    flex: none;
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid var(--jflix-text-secondary);
+    transition: transform var(--jflix-dur-fast) var(--jflix-ease-exit);
+}
+
+/* The wrapper button must not paint 10-global's circular hover wash behind a
+   rounded-square avatar; the ring below is the hover affordance instead. */
+header.MuiAppBar-root > .MuiToolbar-root:first-child > .MuiBox-root:last-child > .MuiIconButton-root:hover,
+header.MuiAppBar-root > .MuiToolbar-root:first-child > .MuiBox-root:last-child > .MuiIconButton-root:active {
+    background-color: transparent;
+}
+
+header.MuiAppBar-root .MuiAvatar-root {
+    width: var(--jflix-avatar);
+    height: var(--jflix-avatar);
+    border-radius: var(--jflix-radius-sm);
+    background-color: var(--jflix-surface-4);
+    color: var(--jflix-text-primary);
+    font: var(--jflix-type-label);
+    transition: box-shadow var(--jflix-dur-fast) var(--jflix-ease-exit);
+}
+
+/* The fallback glyph is `svg.MuiAvatar-fallback`, sized `width/height:75%` by
+   MUI — a 24px white PersonIcon inside a 32px plate, which reads as a solid
+   white square at bar scale. Explicit 20px + --jflix-text-secondary lets the
+   surface-4 plate show around it so the slot reads as an avatar. Still 8.3:1
+   against the plate, far above §5.1's 3:1 for a non-text graphic. */
+header.MuiAppBar-root .MuiAvatar-root .MuiSvgIcon-root {
+    width: var(--jflix-icon-md);
+    height: var(--jflix-icon-md);
+    font-size: var(--jflix-icon-md);
+    color: var(--jflix-text-secondary);
+}
+
+header.MuiAppBar-root > .MuiToolbar-root:first-child > .MuiBox-root:last-child > .MuiIconButton-root:hover .MuiAvatar-root {
+    box-shadow: 0 0 0 2px var(--jflix-line-invert);
+}
+
+/* Caret flip while the menu is open. #app-user-menu is keepMounted and only
+   loses .MuiModal-hidden when open, and the button carries no aria-expanded
+   (components/toolbar/UserMenuButton.tsx:28-39), so :has() on <body> is the
+   only hook. Enhancement only, in its own rule, never grouped (§0.2 #2) — an
+   engine without :has() simply keeps the caret pointing down. */
+body:has(#app-user-menu:not(.MuiModal-hidden)) header.MuiAppBar-root > .MuiToolbar-root:first-child > .MuiBox-root:last-child > .MuiIconButton-root::after {
+    transform: rotate(180deg);
+}
+
+/* §5.2 again: the avatar+caret button is 50x32, so on touch its target is 12px
+   short in height. §3.1 fixes the avatar's VISUAL size at 32, so the target is
+   grown with the transparent ::before §5.2 prescribes (written as
+   top/right/bottom/left — Tizen 2021 has no `inset` shorthand). The expansion
+   is VERTICAL ONLY: 32 + 2x6 = 44 tall, and the box is already 50 wide, so
+   growing it sideways would only overlap the search button's own 44px target
+   (measured: a 6px collision at 390). The 8px §5.2 asks for between targets
+   comes from the margin instead. */
+@media (pointer: coarse) {
+    header.MuiAppBar-root > .MuiToolbar-root:first-child > .MuiBox-root:last-child {
+        margin-left: var(--jflix-space-2);
+    }
+
+    header.MuiAppBar-root > .MuiToolbar-root:first-child > .MuiBox-root:last-child > .MuiIconButton-root::before {
+        content: "";
+        position: absolute;
+        top: -6px;
+        right: 0;
+        bottom: -6px;
+        left: 0;
+    }
+
+    header.MuiAppBar-root a.MuiButton-root[href="#/"]::before {
+        content: "";
+        position: absolute;
+        top: -9px;
+        right: 0;
+        bottom: -9px;
+        left: 0;
+    }
+}
+
+/* ----------------------------------------------------------------------------
+ * 8. Drawer (§3.3) — the modern MuiDrawer only
+ * Width is scoped to `.MuiDrawer-modal` so the dashboard's 240px docked drawer
+ * is left alone, as §3.3 requires. Stock renders the phone drawer at CONTENT
+ * width — measured 191px at 390, unusably narrow.
+ *
+ * §3.3's "top corners --jflix-radius-lg on phone" is written for a bottom
+ * sheet; this drawer is anchored left and is full height, so the same radius
+ * is applied to the two corners that are actually on screen (the trailing
+ * edge). Flagged in the report as an interpretation, not a silent change.
+ * -------------------------------------------------------------------------- */
+
+/* Surface applies to both variants (the bridge had left the paper at
+   --jflix-surface-3, the MUI `background.paper` step). */
+.MuiDrawer-paper {
+    background-color: var(--jflix-surface-1);
+    background-image: none;
+    border: 0;
+}
+
+/* Float, width and radius are the PHONE sheet only. §2.11 allows elevation on
+   a floating layer; the docked drawer is not floating, so it keeps elev-0 and
+   stays square, as §3.3 requires. */
+.MuiDrawer-modal .MuiDrawer-paper {
+    width: min(80vw, 360px);
+    box-shadow: var(--jflix-elev-4);
+    border-radius: 0 var(--jflix-radius-lg) var(--jflix-radius-lg) 0;
+}
+
+[dir="rtl"] .MuiDrawer-modal .MuiDrawer-paper {
+    border-radius: var(--jflix-radius-lg) 0 0 var(--jflix-radius-lg);
+}
+
+/* Backdrop --jflix-scrim-modal. Scoped to the drawer: the menu backdrops are
+   `.MuiBackdrop-invisible` and must stay transparent or every popover dims
+   the page. */
+.MuiDrawer-modal .MuiModal-backdrop {
+    background-color: var(--jflix-scrim-modal);
+}
+
+/* Rows. 48 comfortable / 56 touch / 64 TV (§3.3). */
+.MuiDrawer-paper .MuiListItemButton-root {
+    position: relative;
+    min-height: 48px;
+    padding-left: var(--jflix-space-4);
+    padding-right: var(--jflix-space-4);
+    transition: background-color var(--jflix-dur-fast) var(--jflix-ease-exit);
+}
+
+@media (pointer: coarse) {
+    .MuiDrawer-paper .MuiListItemButton-root {
+        min-height: 56px;
+    }
+}
+
+html.layout-tv .MuiDrawer-paper .MuiListItemButton-root {
+    min-height: 64px;
+}
+
+.MuiDrawer-paper .MuiListItemIcon-root {
+    color: var(--jflix-text-tertiary);
+}
+
+.MuiDrawer-paper .MuiListItemIcon-root .MuiSvgIcon-root {
+    font-size: var(--jflix-icon-md);
+}
+
+.MuiDrawer-paper .MuiListItemText-primary {
+    font: var(--jflix-type-body);
+}
+
+/* DrawerHeaderLink (logo + server name + version) is the wordmark slot of the
+   mobile shell — below md 900 the app bar drops the ServerButton entirely and
+   this row is the only place the server name appears. The rule above would
+   otherwise have silently demoted its stock h6 to 14px body, so the slot is
+   given the same identity as the app-bar wordmark instead (§3.1 row 1), and
+   the Jellyfin PNG is dropped for the same reason it is dropped up there. */
+.MuiDrawer-paper a.MuiListItemButton-root[href="#/"] .MuiListItemIcon-root {
+    display: none;
+}
+
+.MuiDrawer-paper a.MuiListItemButton-root[href="#/"] .MuiListItemText-primary {
+    color: var(--jflix-accent);
+    font: 800 20px/26px var(--jflix-font);
+    letter-spacing: -0.03em;
+}
+
+.MuiDrawer-paper a.MuiListItemButton-root[href="#/"] .MuiListItemText-secondary {
+    color: var(--jflix-text-tertiary);
+    font: var(--jflix-type-body-sm);
+}
+
+/* The subheader is MuiListSubheader-sticky with `background: inherit`, which
+   resolved to `transparent` — list rows scrolled visibly underneath it.
+   Giving it the drawer's own surface makes the stick work.
+   The explicit padding is not optional: MUI carries this element's height in
+   `line-height: 48px`, which the `font` shorthand resets, and the row
+   collapsed to a 13px band jammed against the divider (measured). */
+.MuiDrawer-paper .MuiListSubheader-root {
+    padding: var(--jflix-space-5) var(--jflix-space-4) var(--jflix-space-2);
+    background-color: var(--jflix-surface-1);
+    color: var(--jflix-text-tertiary);
+    font: var(--jflix-type-micro);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.MuiDrawer-paper .MuiListItemButton-root:hover {
+    background-color: var(--jflix-overlay-hover);
+}
+
+.MuiDrawer-paper .MuiListItemButton-root:active {
+    background-color: var(--jflix-overlay-press);
+}
+
+.MuiDrawer-paper .MuiListItemButton-root.Mui-disabled {
+    opacity: .45;
+}
+
+/* SELECTED — LIST 2 of 00-tokens.css: the bridge turns MUI's
+   `rgba(primary-mainChannel / action-selectedOpacity)` into a dark-red wash
+   (measured rgba(225,29,46,.2) on the current drawer row). §1.1 forbids red as
+   a background wash, so §3.3's neutral tint + a 3px accent bar + weight 700
+   replaces it. MUI's own rule is `<hash>.Mui-selected` at (0,2,0); this is
+   (0,3,0) and also later in the cascade. */
+.MuiDrawer-paper .MuiListItemButton-root.Mui-selected {
+    background-color: var(--jflix-overlay-selected);
+}
+
+.MuiDrawer-paper .MuiListItemButton-root.Mui-selected:hover {
+    background-color: var(--jflix-overlay-press);
+}
+
+.MuiDrawer-paper .MuiListItemButton-root.Mui-selected .MuiListItemText-primary {
+    font-weight: 700;
+}
+
+/* Leading-edge bar. Logical properties are Chromium 87+ and fail on
+   webOS 22 / Tizen 2021, so both writing directions are spelled out. */
+.MuiDrawer-paper .MuiListItemButton-root.Mui-selected::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 3px;
+    background-color: var(--jflix-accent);
+}
+
+[dir="rtl"] .MuiDrawer-paper .MuiListItemButton-root.Mui-selected::before {
+    left: auto;
+    right: 0;
+}
+
+/* TV focus (§3.3): a surface-3 fill under the ring 10-global.css already draws. */
+html.layout-tv .MuiDrawer-paper .MuiListItemButton-root:focus {
+    background-color: var(--jflix-surface-3);
+}
+
+/* ----------------------------------------------------------------------------
+ * 9. LibraryToolbar container (§3.1 / §3.12 — the app-bar half only)
+ * The controls INSIDE this row (title button, count chip, play/shuffle group,
+ * filter / sort / view, pagination) belong to the library module; only the
+ * row's own surface and rule are set here, because in the modern app the row
+ * is not a separate sticky element — it is the second row of the fixed app bar.
+ * "--jflix-surface-1 when stuck" (§3.12) is therefore always-on.
+ *
+ * The 1px border grows the header's content box by 1px; OffsetAppBar's
+ * ResizeObserver reads contentRect and the spacer follows (verified).
+ * -------------------------------------------------------------------------- */
+
+header.MuiAppBar-root > .MuiToolbar-root:nth-child(2) {
+    position: relative;
+    background-color: var(--jflix-surface-1);
+}
+
+/* The bottom rule is a pseudo-element, not `border-bottom`. A real border made
+   the row 49px and the two-row bar 113px (measured), so the A-Z rail offset
+   below — which is derived from --jflix-bar-h + --jflix-bar-h-2 — landed 1px
+   inside the bar. `box-sizing: border-box` did not reclaim it: the row's used
+   content height is 48px regardless, so the border always adds a 49th pixel.
+   An absolutely positioned 1px strip costs no layout and keeps the two tokens
+   the single source of truth for the bar's height. */
+header.MuiAppBar-root > .MuiToolbar-root:nth-child(2)::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background-color: var(--jflix-line-hairline);
+    pointer-events: none;
+}
+
+/* ----------------------------------------------------------------------------
+ * 10. The two mandatory offsets §3.1 attaches to raising the bar
+ *
+ * 10a. AlphabetPicker. `top` is a hard-coded MUI `sx` prop
+ *      (features/libraries/components/AlphabetPicker.tsx:36-47), NOT a
+ *      measurement: 96px at sm+ ("AppBar is 2 rows") and 144px at xs ("AppBar
+ *      wraps to 3 rows (128px) + 16px"). Both assume a 48px first row.
+ *
+ *      sm+ is re-derived from the tokens so it tracks every column at once:
+ *        1920 / 1366 layout-desktop -> 64 + 48 = 112px  (§3.1's expected value)
+ *          820 layout-mobile        -> 48 + 48 =  96px  (measured bar: 96px)
+ *          820 layout-desktop       -> 56 + 48 = 104px
+ *      xs cannot be derived: the second row WRAPS there and its height is
+ *      content-driven (measured 100.8px at 390 with the tokens + global layer,
+ *      i.e. a 148.8px bar). 160px keeps ~11px of clearance, matching both
+ *      stock's 12px xs spacing and §3.1's expected value.
+ *      HAND-OFF: the library module (§3.12) resizes the controls in that row;
+ *      if the wrapped height changes, this 160px must be re-measured.
+ *
+ *      `align-items` is flipped to flex-start as well: stock centres the letter
+ *      column in the leftover viewport, which puts "#" 136px below the first
+ *      grid row, and §7.2's grids bullet asks for the rail to be "aligned with
+ *      the first row" — `top` alone cannot do that while the flex container
+ *      centres its child.
+ *      It is GATED ON VIEWPORT HEIGHT, and the gate is not cosmetic. The rail
+ *      is still wearing its stock skin: 27 MUI ToggleButtons at ~25.2px =
+ *      679px. At 1366x768 only 768 - 112 = 656px is available, so top-aligning
+ *      would push "Z" to y=791 and leave 2px of it on screen — §1.6 forbids
+ *      sacrificing the A-Z rail, which is real navigation in a 5000-item
+ *      library. Centring there costs ~11px off "#" and ~4px off "Z" and keeps
+ *      all 27 letters clickable, so short viewports keep stock's behaviour.
+ *      800px = 112 (bar) + 679 (rail) + slack.
+ *      HAND-OFF: §3.12 restyles the letters to --jflix-type-label (12px) and
+ *      the rail to 28px wide; once 27 rows fit in 656px, LOWER OR DROP this
+ *      min-height gate so 1366x768 top-aligns too.
+ *      The rail's own skin is §3.12's — only the offset is set here.
+ * -------------------------------------------------------------------------- */
+
+@media (min-width: 600px) {
+    .alphaPicker-fixed-right {
+        top: calc(var(--jflix-bar-h) + var(--jflix-bar-h-2));
+    }
+}
+
+@media (min-width: 600px) and (min-height: 800px) {
+    .alphaPicker-fixed-right {
+        align-items: flex-start;
+    }
+}
+
+@media (max-width: 599px) {
+    .alphaPicker-fixed-right {
+        top: 160px;
+    }
+}
+
+/* 10b. `.layout-mobile .itemBackdrop{margin-top:-48px !important}`
+ *      (apps/modern/AppOverrides.scss:33-35) pulls the details backdrop up
+ *      under the app bar and hard-codes the 48px dense height.
+ *      00-tokens.css pins --jflix-bar-h to 48px on EVERY html.layout-mobile
+ *      device at any width precisely so this compensation stays exact — an
+ *      820px tablet reports layout-mobile and would otherwise show an 8px seam.
+ *      The literal is replaced by the token anyway, so the two can never drift:
+ *      if the mobile bar height is ever changed, the backdrop follows.
+ *      (0,2,1) with !important — ties stock's (0,2,0) !important on weight,
+ *      beats it on both specificity and source order. */
+html.layout-mobile .itemBackdrop {
+    margin-top: calc(-1 * var(--jflix-bar-h)) !important;
+}

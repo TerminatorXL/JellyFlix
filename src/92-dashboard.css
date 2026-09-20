@@ -1,0 +1,859 @@
+/* ============================================================================
+ * JellyFlix — 92-dashboard.css
+ * §3.18 Admin dashboard and the rest of the admin/settings surfaces: the
+ * dashboard shell (solid app bar + docked drawer), MUI panels/cards/lists, the
+ * material-react-table pages (activity, devices, API keys), logs, scheduled
+ * tasks, the plugin catalogue, library setup, the user editor, the metadata
+ * editor and the Branding page — the one where this very CSS gets pasted.
+ *
+ * Principle (§1.7): "Admin pages get density, not glamour." Compact density,
+ * no hover-scale, no scrims, no hero gradients, no elevation at rest.
+ * Readability beats glamour: nothing here is hidden for tidiness.
+ *
+ * ----------------------------------------------------------------------------
+ * SCOPE DISCIPLINE — two scopes, and the reason there are two
+ * ----------------------------------------------------------------------------
+ *   `body.dashboardDocument …`  the shell: app bar, drawer, page box. The class
+ *        is written by apps/dashboard/AppLayout.tsx:42-48 on every admin route.
+ *   `.dashboardDocument main …` everything INSIDE the page.
+ *        MUI portals (menus, popovers, dialogs, the user-menu Paper, the
+ *        action sheet) are direct children of <body>, i.e. they are inside
+ *        `body.dashboardDocument` but NOT inside `main`. Scoping the panel and
+ *        table rules on `main` is what keeps them from repainting every menu
+ *        and dialog on an admin route — those belong to 60-forms-dialogs.css
+ *        and must stay --jflix-surface-3. Verified live: `#app-user-menu` sits
+ *        next to `.appfooter` as a body child, `main.MuiBox-root` holds only
+ *        `.skinBody > .page`.
+ *   `.metadataEditorPage` has NO `.content-primary` and no `.type-interior`
+ *        (measured: `#editItemMetadataPage.page.libraryPage.metadataEditorPage`),
+ *        which is the other reason the content scope is `main` and not
+ *        `.type-interior` or `.content-primary`.
+ *
+ * Density is CONSUMED, never redeclared: 00-tokens.css already puts
+ * --jflix-control-h 36 / --jflix-list-row-h 40 / --jflix-field-gap 8 /
+ * --jflix-type-body 13px / --jflix-gutter clamp(16px,2vw,32px) /
+ * --jflix-table-cell-pad 6px 12px / --jflix-zoom-* 1 on
+ * `body.dashboardDocument, #dashboardPage, .type-interior, #myPreferencesMenuPage,
+ * #metadataEditorPage, .metadataEditorPage`, with the pointer:coarse and
+ * layout-tv floors re-asserted on the same elements. Every rule below reads the
+ * token, so the touch and TV columns follow for free.
+ *
+ * Buttons are NOT restyled here. 10-global.css §9 owns `.button-submit` (white
+ * Primary), `.button-delete` / `.MuiButton-containedError` (the only filled red),
+ * `.raised`/`.fab` (secondary) and every MUI button variant; form controls,
+ * dialogs, chips-at-rest, `.paperList`, `.collapseContent` and `.visualCardBox`
+ * belong to 60-forms-dialogs.css; the drawer's surface, rows and selected state
+ * belong to 20-shell-modern.css. This file only adds what those cannot know:
+ * the admin scope.
+ *
+ * ----------------------------------------------------------------------------
+ * KNOWN LIMIT — READ THIS BEFORE JUDGING THE DASHBOARD LOOK
+ * ----------------------------------------------------------------------------
+ * `<CustomCss />` is rendered by apps/modern/AppLayout.tsx:79 and
+ * apps/legacy/AppLayout.tsx:15 only. apps/dashboard/AppLayout.tsx renders
+ * `<ThemeCss dashboard />` and no `<CustomCss />`, and DASHBOARD_APP_ROUTES is a
+ * SIBLING of the app routes under RootAppLayout (RootAppRouter.tsx:22-35).
+ * Source-verified again while writing this file (grep for `CustomCss` in
+ * `src/apps/`): through the supported install path — Dashboard → General →
+ * Custom CSS, or the per-user Display → Custom CSS field — this entire file is
+ * inert on `#/dashboard/**`, `#/metadata` and plugin config pages. It is NOT
+ * inert on `#/mypreferences*`, the wizard or any library page, which do mount
+ * the modern/legacy layout.
+ * The harness's `--inject` appends the <style> on every page, so every screenshot
+ * below shows what the rules DO once they are delivered — by the JS add-on
+ * (§6.4), a plugin, or a patched index.html. The rules ship because §3.18 asks
+ * for them and they cost nothing when they never match.
+ * ========================================================================== */
+
+/* ----------------------------------------------------------------------------
+ * 1. Page box and gutter (§3.18 "lose the wide gutter", §7.2 "not narrowed")
+ *
+ * The dashboard must NOT take the 4% browse gutter: at 1920 that is 76.8px a
+ * side and a 20-row table stops fitting. --jflix-gutter is already the compact
+ * clamp(16px,2vw,32px) on these pages, so both rules below simply route the
+ * app's own padding through the token (32px at 1920, 16px at 390 — measured).
+ *
+ * Stock: `.content-primary, .dashboardDocument .dashboard-appBar
+ * {padding-right:1em; padding-left:1em}` (styles/dashboard.scss:154-158),
+ * i.e. (0,1,0) for the first selector and (0,2,0) for the second. The two are
+ * split here so each one ties-or-beats its own stock half and wins on source
+ * order. The toolbar keeps the same gutter as the content so the back arrow,
+ * the page title and the first table column share one left edge.
+ * -------------------------------------------------------------------------- */
+
+.content-primary {
+    padding-left: var(--jflix-gutter);
+    padding-right: var(--jflix-gutter);
+}
+
+body.dashboardDocument .dashboard-appBar {
+    padding-left: var(--jflix-gutter);
+    padding-right: var(--jflix-gutter);
+}
+
+/* 10-global.css §7 rewrites `.padded-left`/`.padded-right` to the browse gutter;
+   a handful of legacy admin pages (library setup, plugin config, the metadata
+   editor's inner content) carry those classes and would jump back to 4%.
+   (0,3,0)/(0,3,1) beats the global (0,2,0) pair. */
+body.dashboardDocument [dir="ltr"] .padded-left,
+[dir="ltr"] body.dashboardDocument .padded-left {
+    padding-left: var(--jflix-gutter);
+}
+
+body.dashboardDocument [dir="rtl"] .padded-left,
+[dir="rtl"] body.dashboardDocument .padded-left {
+    padding-right: var(--jflix-gutter);
+}
+
+body.dashboardDocument [dir="ltr"] .padded-right,
+[dir="ltr"] body.dashboardDocument .padded-right {
+    padding-right: var(--jflix-gutter);
+}
+
+body.dashboardDocument [dir="rtl"] .padded-right,
+[dir="rtl"] body.dashboardDocument .padded-right {
+    padding-left: var(--jflix-gutter);
+}
+
+/* ----------------------------------------------------------------------------
+ * 2. App bar — solid --jflix-surface-0 from scroll position 0 (§3.18 last bullet)
+ *
+ * 20-shell-modern.css §2 gives every app bar the browse behaviour: transparent
+ * at scrollTop 0 with a 140px top scrim on a ::before, solid after a scroll.
+ * §3.18 forbids both here. Three things have to be undone, and specificity
+ * alone is not enough for one of them:
+ *
+ *   a) the colour. `body.dashboardDocument header.MuiAppBar-root` is (0,2,2)
+ *      and beats the shell's `header.MuiAppBar-root.MuiAppBar-colorTransparent`
+ *      (0,2,1); the -colorTransparent variant is repeated at (0,3,2) so the
+ *      state class the app swaps at scrollTop>0 cannot re-open the question.
+ *   b) the ANIMATION. The shell's @supports block drives background-color with
+ *      a scroll-driven `animation`, and an animation's computed value beats a
+ *      normal declaration no matter how specific it is. `animation: none` at a
+ *      higher specificity removes the animation itself, which is the only fix
+ *      that does not need !important (house rule 0.2#3).
+ *   c) the scrim ::before — `display: none` rather than an opacity, so the
+ *      pseudo-element's own scroll-driven opacity animation has nothing to act
+ *      on either.
+ *
+ * No shadow at rest (§7.1). The bar is separated from the content by a hairline
+ * instead, which also survives forced-colors. OffsetAppBar's ResizeObserver
+ * reads contentRect and re-measures the spacer, so the +1px is absorbed.
+ * -------------------------------------------------------------------------- */
+
+body.dashboardDocument header.MuiAppBar-root {
+    background-color: var(--jflix-surface-0);
+    background-image: none;
+    animation: none;
+    border-bottom: 1px solid var(--jflix-line-hairline);
+}
+
+body.dashboardDocument header.MuiAppBar-root.MuiAppBar-colorTransparent {
+    background-color: var(--jflix-surface-0);
+}
+
+body.dashboardDocument header.MuiAppBar-root.MuiAppBar-colorDefault {
+    background-color: var(--jflix-surface-0);
+    box-shadow: var(--jflix-elev-0);
+}
+
+body.dashboardDocument header.MuiAppBar-root::before {
+    display: none;
+}
+
+/* ----------------------------------------------------------------------------
+ * 3. Docked drawer (§3.18 "stays 240px, --jflix-surface-1")
+ *
+ * The 240px width is MUI's own (components/ResponsiveDrawer.tsx) and is left
+ * alone — 20-shell-modern.css §8 deliberately scopes its width override to
+ * `.MuiDrawer-modal` for exactly that reason — and the surface, rows, section
+ * subheaders and the Mui-selected treatment all come from that same block.
+ * The only thing missing on an admin page is the edge: the drawer is docked
+ * against the content, both are dark, and the shell zeroes the MUI border.
+ * (0,2,0) beats the shell's `.MuiDrawer-paper{border:0}` (0,1,0).
+ * -------------------------------------------------------------------------- */
+
+body.dashboardDocument .MuiDrawer-paper {
+    border-right: 1px solid var(--jflix-line-hairline);
+}
+
+[dir="rtl"] body.dashboardDocument .MuiDrawer-paper {
+    border-right: 0;
+    border-left: 1px solid var(--jflix-line-hairline);
+}
+
+/* ----------------------------------------------------------------------------
+ * 4. Panels (§3.18: --jflix-surface-1, 1px --jflix-line-hairline, radius-sm,
+ *    --jflix-elev-0)
+ *
+ * Three different components render an admin panel and all three arrive from
+ * MUI at `background.paper` (= --jflix-surface-3 after the bridge) or, inside
+ * material-react-table, at the literal #202020 (measured rgb(32,32,32) on the
+ * activity table's Paper — §7.1 greps for that value):
+ *   .MuiPaper-root  dashboard widgets, plugin/library cards, the MRT wrapper
+ *   .MuiCard-root   BaseCard (devices, plugins, libraries) — also a Paper
+ *   .MuiList-root   the activity feed, the folder/storage list, tasks groups
+ *                   (an `sx={{bgcolor:'background.paper'}}` list, not a Paper)
+ *
+ * MUI's own rules are emotion classes at (0,1,0); these are (0,2,1) and win.
+ * `background-image: none` kills MUI's elevation wash
+ * (linear-gradient(rgba(255,255,255,.05),…)) which --jf-overlays-* already
+ * neutralises on :root — belt and braces, because MRT re-declares it.
+ * -------------------------------------------------------------------------- */
+
+.dashboardDocument main .MuiPaper-root,
+.dashboardDocument main .MuiList-root {
+    background-color: var(--jflix-surface-1);
+    background-image: none;
+    border-radius: var(--jflix-radius-sm);
+    box-shadow: var(--jflix-elev-0);
+}
+
+/* The hairline is a separate rule from the fill because a `.MuiList-root` that
+   is itself inside a Paper would draw a second, doubled rule 1px inside the
+   first. Only the outermost panel of each pair gets it: a List that is a child
+   of a Paper is excluded, which is a plain (0,3,2) selector, no :has(). */
+.dashboardDocument main .MuiPaper-root,
+.dashboardDocument main .MuiList-root {
+    border: 1px solid var(--jflix-line-hairline);
+}
+
+.dashboardDocument main .MuiPaper-root .MuiList-root {
+    border: 0;
+    border-radius: 0;
+}
+
+/* MRT paints its top and bottom toolbars with the same base background as the
+   table (measured rgb(32,32,32) on both, plus an INSET box-shadow on the
+   bottom bar — a shadow at rest, §7.1). They are direct Box children of the
+   table Paper, which now carries the panel fill, so they only need to become
+   transparent and to separate themselves with a rule. */
+.dashboardDocument main .MuiPaper-root > .MuiBox-root {
+    background-color: transparent;
+    box-shadow: none;
+}
+
+/* Cards: the plate is the panel fill, the media area keeps the artwork. The
+   text block is where the compact column has to be spelled out, because MUI's
+   CardContent ships 16px padding + a 24px last-child bottom padding. */
+.dashboardDocument main .MuiCardContent-root {
+    padding: var(--jflix-space-3) var(--jflix-space-4);
+}
+
+.dashboardDocument main .MuiCardContent-root:last-child {
+    padding-bottom: var(--jflix-space-3);
+}
+
+/* §3.18 "hover-scale disabled entirely". MUI's CardActionArea does not scale,
+   it cross-fades a white `focusHighlight` overlay; keep it as the hover
+   affordance but at the §2.5 overlay value instead of MUI's .04 guess, so a
+   hovered card reads the same as a hovered table row. */
+.dashboardDocument main .MuiCardActionArea-root:hover .MuiCardActionArea-focusHighlight {
+    opacity: .08;
+}
+
+/* ----------------------------------------------------------------------------
+ * 5. List rows inside a panel (§2.15 compact: --jflix-list-row-h 40)
+ *
+ * The activity feed, the folder list, the log list and the scheduled-task
+ * groups are all `MuiList > MuiListItem > MuiListItemButton`. Stock gives the
+ * button 8px/16px padding and no minimum; two-line rows measure 70-95px, which
+ * is browse density on a page whose job is to show twenty things at once.
+ * The rows are separated by hairlines rather than by whitespace — same
+ * treatment as `.listItem-border` on the preferences pages (_theme.scss:364).
+ * -------------------------------------------------------------------------- */
+
+.dashboardDocument main .MuiList-root {
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.dashboardDocument main .MuiListItemButton-root {
+    min-height: var(--jflix-list-row-h);
+    padding-top: var(--jflix-space-1);
+    padding-bottom: var(--jflix-space-1);
+    transition: background-color var(--jflix-dur-fast) var(--jflix-ease-exit);
+}
+
+.dashboardDocument main .MuiList-root > .MuiListItem-root {
+    border-bottom: 1px solid var(--jflix-line-hairline);
+}
+
+.dashboardDocument main .MuiList-root > .MuiListItem-root:last-child {
+    border-bottom: 0;
+}
+
+/* Some lists (logs, folders) render the ListItemButton as the direct child. */
+.dashboardDocument main .MuiList-root > .MuiListItemButton-root {
+    border-bottom: 1px solid var(--jflix-line-hairline);
+}
+
+.dashboardDocument main .MuiList-root > .MuiListItemButton-root:last-child {
+    border-bottom: 0;
+}
+
+.dashboardDocument main .MuiListItemButton-root:hover {
+    background-color: var(--jflix-overlay-hover);
+}
+
+.dashboardDocument main .MuiListItemButton-root:active {
+    background-color: var(--jflix-overlay-press);
+}
+
+/* Row text. MUI's ListItemText primary is body1 (already --jflix-type-body =
+   13px here through 10-global.css §2) but the dashboard uses an h3 Typography
+   for log/task names, which would render 17px in a 40px row. */
+.dashboardDocument main .MuiListItemText-primary {
+    color: var(--jflix-text-primary);
+    font: var(--jflix-type-body);
+}
+
+.dashboardDocument main .MuiListItemText-secondary {
+    color: var(--jflix-text-tertiary);
+    font: var(--jflix-type-body-sm);
+}
+
+.dashboardDocument main .MuiListItemIcon-root {
+    color: var(--jflix-text-tertiary);
+    min-width: var(--jflix-space-7);
+}
+
+/* ----------------------------------------------------------------------------
+ * 6. Avatars in admin content — the LIST 2 red wash
+ *
+ * 00-tokens.css's LIST 2 records that the --jf-palette-primary-main bridge
+ * turns every MUI Avatar fallback accent-red. On the dashboard that is not one
+ * avatar but a COLUMN of them: the activity feed renders a `ListItemAvatar >
+ * Avatar` per event (measured: 7 visible at 1920) and the scheduled-task list
+ * one per task. §1.1 forbids red as a background wash and §2.3's five accent
+ * slots do not include "avatar", so they become a neutral surface-4 disc with a
+ * secondary-text glyph. The app-bar avatar is the shell module's copy of this
+ * same problem and is deliberately NOT touched here.
+ * -------------------------------------------------------------------------- */
+
+.dashboardDocument main .MuiAvatar-root {
+    background-color: var(--jflix-surface-4);
+    color: var(--jflix-text-secondary);
+}
+
+.dashboardDocument main .MuiAvatar-root .MuiSvgIcon-root {
+    color: var(--jflix-text-secondary);
+    font-size: var(--jflix-icon-md);
+}
+
+/* ----------------------------------------------------------------------------
+ * 7. Headings inside admin content
+ *
+ * 10-global.css §2 owns the bare h1/h2/h3 and the MuiTypography-h* scale, which
+ * lands `h1.MuiTypography-h1` at 40px. That is the browse display scale; a
+ * settings page that starts with a 40px title and then shows 13px fields reads
+ * as two different products. The compact column steps the page title down to
+ * --jflix-type-h2 and the widget headings to --jflix-type-h3, which is exactly
+ * the "density, not glamour" rule. (0,2,1) beats global's (0,1,0).
+ * -------------------------------------------------------------------------- */
+
+.dashboardDocument main .MuiTypography-h1 {
+    color: var(--jflix-text-primary);
+    font: var(--jflix-type-h2);
+    letter-spacing: -0.012em;
+}
+
+.dashboardDocument main .MuiTypography-h2 {
+    color: var(--jflix-text-primary);
+    font: var(--jflix-type-h3);
+    letter-spacing: 0;
+}
+
+.dashboardDocument main .MuiTypography-h3 {
+    color: var(--jflix-text-primary);
+    font: var(--jflix-type-h3);
+    letter-spacing: 0;
+}
+
+/* Legacy admin pages (user editor, library setup, the users grid) use
+   `h1/h2.sectionTitle`, which carries no stock font-size at all and therefore
+   inherits global's bare-element rule. Same step-down, same reason. */
+.dashboardDocument main .sectionTitle {
+    color: var(--jflix-text-primary);
+    font: var(--jflix-type-h3);
+    letter-spacing: 0;
+}
+
+.dashboardDocument main h1.sectionTitle {
+    font: var(--jflix-type-h2);
+    letter-spacing: -0.012em;
+}
+
+/* The widget headers are text buttons that wrap the heading plus a chevron
+   ("Serwer ›", "Aktywność ›", "Foldery ›"). Keep them looking like headings,
+   not like buttons: no min-height inflation, no button fill. */
+.dashboardDocument main .MuiButton-text .MuiTypography-h3 {
+    color: var(--jflix-text-primary);
+}
+
+.dashboardDocument main .MuiButton-text .MuiButton-endIcon .MuiSvgIcon-root {
+    font-size: var(--jflix-icon-md);
+    color: var(--jflix-text-tertiary);
+}
+
+.dashboardDocument main .MuiFormHelperText-root {
+    color: var(--jflix-text-tertiary);
+    font: var(--jflix-type-body-sm);
+}
+
+/* ----------------------------------------------------------------------------
+ * 8. Tables (§3.18: header row --jflix-surface-1 sticky at --jflix-z-sticky,
+ *    zebra rgba(255,255,255,.02), hover --jflix-overlay-hover)
+ *
+ * Every admin table is material-react-table inside TablePage
+ * (apps/dashboard/components/table/TablePage.tsx:48-78) with
+ * enableStickyHeader + enableStickyFooter. MRT paints its own "base background
+ * colour" on the Paper, the head row, every head cell, every body row AND every
+ * body cell — measured rgb(32,32,32) on all five, which is the #202020 §7.1
+ * greps for. The variable it reads is exposed, so it is set first and the
+ * individual elements are then pinned by rule as well, because MRT's version
+ * decides which of the two it actually uses.
+ *
+ * Head cells stay OPAQUE (a sticky header over transparent cells smears the
+ * rows underneath); body cells go transparent so the zebra on the row shows
+ * through and a hovered row can repaint them in one go.
+ * -------------------------------------------------------------------------- */
+
+.dashboardDocument main .MuiTableContainer-root {
+    --mrt-base-background-color: var(--jflix-surface-1);
+
+    background-color: transparent;
+}
+
+.dashboardDocument main .MuiTable-root {
+    --mrt-base-background-color: var(--jflix-surface-1);
+
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+/* Every row first: MRT paints its base colour on the head row, the body rows
+   AND the sticky-footer row (enableStickyFooter, TablePage.tsx:26) — the
+   footer row was the one #202020 left standing when only tbody rows were
+   cleared (caught by a full-page computed-style scan of #/dashboard/activity).
+   The head row is repainted right after, at the same (0,3,0) but later in the
+   file, which is the whole point of the flat-file cascade. */
+.dashboardDocument main .MuiTable-root .MuiTableRow-root {
+    background-color: transparent;
+}
+
+/* Sticky head. §2.12 reserves 900 for sticky chrome; the fixed app bar is 1100
+   and lives in its own stacking context, so the head can never cover it. */
+.dashboardDocument main .MuiTableHead-root {
+    z-index: var(--jflix-z-sticky);
+}
+
+.dashboardDocument main .MuiTable-root .MuiTableRow-head {
+    background-color: var(--jflix-surface-1);
+    box-shadow: none;
+}
+
+.dashboardDocument main .MuiTableCell-head {
+    background-color: var(--jflix-surface-1);
+    color: var(--jflix-text-primary);
+    font: var(--jflix-type-label);
+    letter-spacing: 0.01em;
+    padding: var(--jflix-table-cell-pad);
+    border-bottom: 1px solid var(--jflix-line-subtle);
+}
+
+.dashboardDocument main .MuiTableCell-body {
+    background-color: transparent;
+    color: var(--jflix-text-secondary);
+    font: var(--jflix-type-body);
+    padding: var(--jflix-table-cell-pad);
+    border-bottom: 1px solid var(--jflix-line-hairline);
+}
+
+.dashboardDocument main .MuiTableCell-footer {
+    background-color: transparent;
+    color: var(--jflix-text-tertiary);
+    border-top: 1px solid var(--jflix-line-hairline);
+    border-bottom: 0;
+    padding: var(--jflix-table-cell-pad);
+}
+
+/* Zebra. §3.18's literal — two per cent white is below every other overlay in
+   §2.5 on purpose: it has to be readable as banding without reading as a
+   selection. */
+.dashboardDocument main .MuiTableBody-root .MuiTableRow-root:nth-of-type(even) {
+    background-color: rgba(255, 255, 255, .02);
+}
+
+/* Hover is painted on the CELLS, not on the row: MRT's own hover rule targets
+   `tr:hover td` at (0,2,1), which would otherwise tie with the transparent
+   body-cell rule above and win on source order inside its own sheet. */
+.dashboardDocument main .MuiTableBody-root .MuiTableRow-root:hover .MuiTableCell-body {
+    background-color: var(--jflix-overlay-hover);
+}
+
+.dashboardDocument main .MuiTableRow-root.Mui-selected .MuiTableCell-body {
+    background-color: var(--jflix-overlay-selected);
+}
+
+/* MRT chrome that is not a cell: the column-drag drop zone is a translucent
+   light-blue wash (measured rgba(41,182,246,.1) — a stock blue that only shows
+   while a column header is being dragged, but §7.1 says zero), the resize
+   handle and the head-cell action buttons. */
+.dashboardDocument main .Mui-ToolbarDropZone {
+    background-color: var(--jflix-overlay-selected);
+}
+
+.dashboardDocument main .Mui-TableHeadCell-ResizeHandle-Divider {
+    border-color: var(--jflix-line-subtle);
+}
+
+.dashboardDocument main .Mui-TableHeadCell-Content-Actions .MuiSvgIcon-root {
+    color: var(--jflix-text-tertiary);
+    font-size: var(--jflix-icon-sm);
+}
+
+/* Pagination and the row-count line in the sticky footer. */
+.dashboardDocument main .MuiTablePagination-root {
+    color: var(--jflix-text-secondary);
+    font: var(--jflix-type-body-sm);
+}
+
+.dashboardDocument main .MuiTablePagination-root .MuiInputBase-root {
+    font: var(--jflix-type-body-sm);
+}
+
+/* The toggle group on the activity page ("Wszystkie / Użytkownik / System") is
+   the closest thing the admin UI has to a tab strip. Neutral at rest, §2.5
+   selected overlay when active — never the accent, which §2.3 reserves for the
+   app's own nav indicator. */
+.dashboardDocument main .MuiToggleButton-root {
+    color: var(--jflix-text-secondary);
+    border-color: var(--jflix-line-subtle);
+    font: var(--jflix-type-button);
+    letter-spacing: 0.005em;
+    text-transform: none;
+    min-height: var(--jflix-control-h);
+}
+
+.dashboardDocument main .MuiToggleButton-root:hover {
+    background-color: var(--jflix-overlay-hover);
+}
+
+.dashboardDocument main .MuiToggleButton-root.Mui-selected {
+    background-color: var(--jflix-overlay-selected);
+    color: var(--jflix-text-primary);
+}
+
+.dashboardDocument main .MuiToggleButton-root.Mui-selected:hover {
+    background-color: var(--jflix-overlay-press);
+}
+
+/* ----------------------------------------------------------------------------
+ * 9. Filter chips (plugin catalogue) — §3.7's filter-chip row
+ *
+ * 60-forms-dialogs.css §14 owns the chip at rest (surface-4, subtle border,
+ * pill). The SELECTED chip is the part that is broken here: MUI's
+ * `MuiChip-filledPrimary` reads --jf-palette-primary-main, which the bridge
+ * points at the accent, so the plugin catalogue shows a row of filled red pills
+ * (measured rgb(225,29,46) on three of them at once). §3.7 spells the selected
+ * filter chip out — "#FFF bg + --jflix-text-on-light" — which is also the
+ * Primary-button pairing, so the two --jflix-btn-primary-bg* tokens are used
+ * rather than the literal: on html[data-theme="light"] --jflix-text-on-light
+ * flips to #FFFFFF and a hard-coded white fill would be white-on-white.
+ * The 14px check §3.7 also asks for needs a ::before with content, which would
+ * land inside MUI's own label box and shift every chip's text; it is left to
+ * the spec owner. SPEC/CROSS-MODULE: note that the check is not delivered on
+ * MUI chips, only on the legacy `.emby-button` filter chips §3.12 owns.
+ * -------------------------------------------------------------------------- */
+
+.dashboardDocument main .MuiChip-filledPrimary {
+    background-color: var(--jflix-btn-primary-bg);
+    color: var(--jflix-text-on-light);
+    border-color: transparent;
+    font-weight: 600;
+}
+
+.dashboardDocument main .MuiChip-filledPrimary:hover {
+    background-color: var(--jflix-btn-primary-bg-hover);
+}
+
+.dashboardDocument main .MuiChip-filledPrimary .MuiChip-deleteIcon {
+    color: var(--jflix-text-on-light);
+}
+
+/* ----------------------------------------------------------------------------
+ * 10. Progress — the four hard-coded #00a4dc slots of styles/dashboard.scss
+ *     (:32 ::-moz-progress-bar, :36 ::-webkit-progress-value,
+ *      :41 progress[aria-valuenow]::before, :378 .playbackProgress > div),
+ *     plus its `background: #ccc !important` track (:19-28).
+ *
+ * Vendor pseudo-elements get ONE RULE EACH: an unknown pseudo-element
+ * invalidates the whole selector list it appears in, so grouping
+ * ::-moz-progress-bar with ::-webkit-progress-value would drop both on every
+ * engine. (Same law as ::selection / ::-moz-selection in 10-global.css §4.)
+ *
+ * The track is --jflix-progress-track (opaque #141414, §2.3's note: a
+ * translucent track measures 1.42:1 against the fill) and the fill is the
+ * accent — §2.3 slot 2, "watch-progress fill", which is literally what
+ * .playbackProgress is. !important only where stock used it (house rule 0.2#3):
+ * the `#ccc` track is `!important` in stock, the colour rules are not.
+ * -------------------------------------------------------------------------- */
+
+body.dashboardDocument progress {
+    background: var(--jflix-progress-track) !important;
+    border-radius: var(--jflix-radius-xs);
+}
+
+body.dashboardDocument progress::-webkit-progress-bar {
+    background: var(--jflix-progress-track);
+}
+
+body.dashboardDocument progress::-webkit-progress-value {
+    background-color: var(--jflix-accent);
+}
+
+body.dashboardDocument progress::-moz-progress-bar {
+    background-color: var(--jflix-accent);
+}
+
+body.dashboardDocument progress[aria-valuenow]::before {
+    background-color: var(--jflix-accent);
+    border-radius: var(--jflix-radius-xs);
+}
+
+body.dashboardDocument .playbackProgress > div {
+    background-color: var(--jflix-accent);
+}
+
+body.dashboardDocument .backgroundProgress > div {
+    background-color: var(--jflix-surface-4);
+}
+
+/* MUI's LinearProgress (task progress, the storage bars on the dashboard home).
+   colorPrimary would be the accent through the bridge, which is correct for a
+   progress FILL; only the track needs to stop being a 30%-white smear. The
+   error/warning/success variants are left alone — a 94%-full disk showing red
+   is information, not decoration. */
+.dashboardDocument main .MuiLinearProgress-root {
+    background-color: var(--jflix-progress-track);
+    border-radius: var(--jflix-radius-xs);
+}
+
+.dashboardDocument main .MuiLinearProgress-barColorPrimary {
+    background-color: var(--jflix-accent);
+}
+
+/* Spinners. 10-global.css §8 already repaints `.docspinner` and
+   `.progressring-spiner` --jflix-text-primary rather than the accent, because
+   §2.3's accent scope is exhaustive; MUI's CircularProgress is the same
+   primitive on the admin pages (measured rgb(225,29,46) on the devices table's
+   loading overlay) and follows the same decision. */
+.dashboardDocument main .MuiCircularProgress-colorPrimary {
+    color: var(--jflix-text-primary);
+}
+
+/* ----------------------------------------------------------------------------
+ * 11. Legacy admin chrome (styles/dashboard.scss)
+ *
+ * `div[data-role=controlgroup] a.ui-btn-active{background:#00a4dc!important;
+ *  color:#292929!important}` (dashboard.scss:118-123) is the last stock
+ * !important blue in this subsystem — it needs !important back, and it is a
+ * "selected segment", i.e. §2.5's selected overlay, not an accent slot.
+ * `a[data-role=button]{background:#292929}` (:75) out-ranks the bridge's
+ * --jf-palette-Button-inheritContainedBg on source order; #292929 is not on
+ * §7.1's grep list but it is an off-ladder near-#282828 grey, so it is pulled
+ * onto the ladder here rather than left as the one control that does not match.
+ * -------------------------------------------------------------------------- */
+
+body.dashboardDocument div[data-role="controlgroup"] a.ui-btn-active {
+    background: var(--jflix-overlay-selected) !important;
+    color: var(--jflix-text-primary) !important;
+}
+
+body.dashboardDocument a[data-role="button"] {
+    background: var(--jflix-surface-4);
+    border-radius: var(--jflix-radius-sm);
+}
+
+body.dashboardDocument a[data-role="button"]:hover {
+    background: var(--jflix-surface-5);
+}
+
+/* The setup wizard is the one admin surface that DOES receive Custom CSS (it
+   mounts apps/legacy/AppLayout — apps/wizard/routes/routes.tsx:4,66), and
+   `.wizardContent{background:#fff}` (dashboard.scss:252-257) paints it white:
+   white plate, white-on-white --jflix-text-primary, an unreadable first-run
+   experience. Treated as a panel, like everything else in §3.18.
+   No other module claims `.wizardContent` (grepped across src/). */
+body.dashboardDocument .wizardContent,
+.wizardPage .wizardContent {
+    background: var(--jflix-surface-1);
+    border: 1px solid var(--jflix-line-hairline);
+    border-radius: var(--jflix-radius-sm);
+    box-shadow: var(--jflix-elev-0);
+    color: var(--jflix-text-secondary);
+}
+
+/* Session cards on the dashboard home: the "now playing" art panel carries a
+   0.7-black darken layer with a #ddd label (dashboard.scss:341-344). The dim
+   is the §2.5 tile scrim and the label is ordinary primary text over it. */
+body.dashboardDocument .darkenContent {
+    background: var(--jflix-scrim-tile);
+    color: var(--jflix-text-primary);
+}
+
+body.dashboardDocument .sessionNowPlayingContent {
+    border-radius: var(--jflix-radius-sm);
+}
+
+/* The footer links under the legacy dashboard pages. */
+body.dashboardDocument .dashboardFooter a {
+    color: var(--jflix-text-tertiary);
+}
+
+body.dashboardDocument .dashboardFooter a:hover {
+    color: var(--jflix-text-primary);
+}
+
+/* ----------------------------------------------------------------------------
+ * 12. Metadata editor (#/metadata) — styles/metadataeditor.scss
+ *
+ * The sidebar rule is `[dir="ltr"] .editPageSidebar{border-right:1px solid #555}`
+ * inside `@media all and (min-width:50em)`; media queries add no specificity,
+ * so a (0,2,0) rule here ties and wins on source order. Only the COLOUR is
+ * changed — the border is what separates the tree from the form.
+ *
+ * jstree ships its own theme with `!important` on both row states
+ * (metadataeditor.scss:31-49): `#38c` hover and `#00a4dc` selected. Both need
+ * !important back, and both become §2.5 overlays: the selected row is the one
+ * item the editor on the right is editing, which is a selection, not an accent.
+ * -------------------------------------------------------------------------- */
+
+[dir="ltr"] .editPageSidebar {
+    border-right-color: var(--jflix-line-hairline);
+}
+
+[dir="rtl"] .editPageSidebar {
+    border-left-color: var(--jflix-line-hairline);
+}
+
+.jstree-wholerow-hovered {
+    background: var(--jflix-overlay-hover) !important;
+    border-radius: var(--jflix-radius-xs) !important;
+    box-shadow: none !important;
+}
+
+.jstree-default .jstree-wholerow-clicked {
+    background: var(--jflix-overlay-selected) !important;
+}
+
+.jstree-anchor {
+    color: var(--jflix-text-secondary);
+}
+
+.jstree-default .jstree-clicked {
+    color: var(--jflix-text-primary);
+}
+
+/* `.offlineEditorNode{color:#c33}` (metadataeditor.scss:20) is an error state
+   on a near-black page at 3.4:1 — §5.1's error-text token clears 4.5:1. */
+.offlineEditorNode {
+    color: var(--jflix-danger-text);
+}
+
+/* ----------------------------------------------------------------------------
+ * 13. Branding page (#/dashboard/branding) — the page this CSS is pasted into
+ *
+ * `.textarea-mono` (the Disclaimer and Custom CSS fields) sets a monospace
+ * family on the MUI input ROOT, but the value is typed into the inner
+ * `textarea.MuiInputBase-input`, and 10-global.css §2's
+ * `[class*="Mui"]:not(.MuiIcon-root){font-family:var(--jflix-font)}` matches
+ * that inner element and re-proportionalises it — measured live: the CSS field
+ * renders in "Noto Sans". Editing a stylesheet in a proportional font is a real
+ * regression on the one page an admin uses this theme from, so the stock stack
+ * is restored on exactly those two fields. (0,3,0) beats global's (0,2,0).
+ * CROSS-MODULE: 10-global.css should carry `.textarea-mono .MuiInputBase-input`
+ * (or a `:not()`) so the fix is not dashboard-only — the same class is used by
+ * the per-user Custom CSS field on #/mypreferencesdisplay.
+ *
+ * The font stack is the app's own (components/.../textarea-mono), not a token:
+ * --jflix-font-num leads with "Noto Sans" and would not be monospaced.
+ * -------------------------------------------------------------------------- */
+
+.dashboardDocument main .textarea-mono .MuiInputBase-input {
+    font-family: ui-monospace, Menlo, Monaco, "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", Consolas, "Courier New", monospace;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+/* NOT DONE, deliberately: giving `.textarea-mono .MuiInputBase-inputMultiline`
+   a taller min-height to make the CSS field workable. The Branding page has TWO
+   fields carrying that class — Disclaimer and Custom CSS — and the only thing
+   telling them apart is a React-generated id (`:rn:`), so the rule enlarged
+   both and pushed the CSS field below the fold (measured at 1920: the page grew
+   past 1100px and the Save button left the first screen). A bigger CSS editor
+   needs a hook the markup does not provide. SPEC/UPSTREAM: the Custom CSS field
+   wants its own class.
+
+   `.customCssContainer textarea{resize:none}` is the legacy twin of the same
+   field (dashboard.scss:229-231); vertical resizing is a usability win and
+   costs nothing, horizontal resizing would break the form layout. */
+body.dashboardDocument .customCssContainer textarea {
+    resize: vertical;
+    font-family: ui-monospace, Menlo, Monaco, "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", Consolas, "Courier New", monospace;
+}
+
+/* ----------------------------------------------------------------------------
+ * 14. Users / devices grid (#/dashboard/users)
+ *
+ * The plate (`.cardBox.visualCardBox`, #202020 + a Material shadow) belongs to
+ * 60-forms-dialogs.css §15 and the placeholder tints
+ * (`.defaultCardBackground1…5`, five Jellyfin blues) to 35-cards.css §1 — both
+ * verified as covered, neither repeated here.
+ *
+ * What IS this file's business is §3.18's "hover-scale disabled entirely".
+ * 35-cards.css drives every card transform from var(--jflix-zoom-grid), and
+ * 00-tokens.css pins that variable to 1 on `body.dashboardDocument`, so the
+ * hover ends at scale(1) by construction (verified live: transform reports
+ * `matrix(1, 0, 0, 1, 0, 0)` on a hovered admin user card). The rule below only
+ * covers the two card states 35-cards.css writes as LITERALS rather than
+ * through the token — `:active{scale(.98/1.06)}` — which the token cannot
+ * reach. (0,3,0) with the same shape as the stock/card-module selectors.
+ * -------------------------------------------------------------------------- */
+
+body.dashboardDocument .card:active .cardBox,
+body.dashboardDocument .card:active .cardScalable {
+    transform: none;
+}
+
+/* The users grid's "+" button is `.fab.submit`, not `.button-submit`, so
+   10-global.css's neutral recipe paints it surface-4 — correct, because §3.18
+   reserves the white Primary for `.button-submit` / submit buttons. It only
+   needs to stop being a 38px circle in a 36px row. */
+body.dashboardDocument .sectionTitleButton {
+    width: var(--jflix-control-h);
+    height: var(--jflix-control-h);
+}
+
+/* ----------------------------------------------------------------------------
+ * 15. Mobile (§7.2 dashboard is verified at modern-mobile)
+ *
+ * Below MUI's md (900px) the drawer is a SwipeableDrawer and the page loses its
+ * 240px offset, so the content runs to both edges: the gutter token is already
+ * 16px there and §1 routes the padding through it. The only thing left is the
+ * panel rhythm — at 390px a 16px-padded card inside a 16px-gutter page leaves
+ * a 358px content box, and MUI's Grid spacing pushes the first widget 24px down
+ * from a 48px app bar.
+ * -------------------------------------------------------------------------- */
+
+@media (max-width: 599px) {
+    .dashboardDocument main .MuiCardContent-root {
+        padding: var(--jflix-space-3);
+    }
+
+    .dashboardDocument main .MuiTableCell-head,
+    .dashboardDocument main .MuiTableCell-body {
+        padding: var(--jflix-space-2) var(--jflix-space-3);
+    }
+}

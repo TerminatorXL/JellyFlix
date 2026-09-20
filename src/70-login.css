@@ -1,0 +1,624 @@
+/* ============================================================================
+ * JellyFlix — 70-login.css
+ * §3.14 Login and the "who's watching" picker, plus the neighbouring session
+ * screens (select server, add server, forgot password + PIN, setup wizard) so
+ * none of them looks broken next to the themed sign-in page.
+ *
+ * Scope discipline — everything here is anchored on `#loginPage`, `#divUsers`
+ * or a class that exists only on a session screen. The two exceptions are
+ * documented at their site:
+ *   - the `.backgroundContainer` wash, which is a FIXED sibling of the page and
+ *     can only be reached from `body` (§2 below, a `:has()` enhancement);
+ *   - the shared standalone-screen block in §8.
+ *
+ * NOT owned here, by design (verify against the full bundle, not this file
+ * alone — `--inject src/00-tokens.css,src/10-global.css,src/70-login.css`
+ * renders the login page WITHOUT these):
+ *   - the fields, their labels and the "Zapamiętaj hasło" checkbox — §3.15,
+ *     60-forms-dialogs.css. Stock paints `.checkboxOutline` with
+ *     --jf-palette-primary-main, which the §2.16 bridge has turned accent-red
+ *     (00-tokens.css LIST 2); the forms module is what turns it white again.
+ *   - the white Primary / neutral Secondary button recipes — 10-global.css §9.
+ *     This file only sets their geometry on the login page.
+ *   - the focus ring — 10-global.css §5. §4.3 puts the ring on the CARD ROOT,
+ *     "outside the scaled plate", so the picker deliberately adds no ring of
+ *     its own; `button:focus-visible` and `.show-focus:focus` already cover
+ *     `#divUsers .card`.
+ *   - `.defaultCardBackground1…5` (the five Jellyfin blues behind an avatar-less
+ *     profile) — re-pointed at the surface ladder by 35-cards.css. §7.1's
+ *     "zero visible #00a4dc" gate on the picker depends on that file.
+ *
+ * Specificity: Custom CSS is the last sheet in the document, so a tie wins.
+ * Every `#…` selector here carries an id, which beats any number of stock
+ * classes — that is how the `card.scss` breakpoint ladder and the `contain`
+ * rules are out-specified without `!important`.
+ * ========================================================================== */
+
+/* ----------------------------------------------------------------------------
+ * 1. Page shell
+ *
+ * Stock forces TWO paddings on this page with `!important`:
+ *   `.standalonePage{padding-top:4.5em !important}`   librarybrowser.scss:103-105
+ *   `.page{padding-bottom:5em !important}`            site.scss:119-125
+ * (measured live: 66.96px / 74.4px). §3.14: "a full-bleed login needs both
+ * overridden". `!important` here is allowed by house rule 3 — stock used it on
+ * the same two properties.
+ *
+ * The page becomes a flex column so the sign-in block is vertically centred in
+ * the viewport instead of hanging off a 4.5em top padding. `display:flex` is
+ * NOT on house rule 5's forbidden list (transform / filter / perspective /
+ * backdrop-filter / contain / will-change) — it creates no containing block, so
+ * the fixed app bar and `.alphaPicker-fixed-right` are unaffected.
+ *
+ * `justify-content` is declared twice on purpose: engines that understand the
+ * `safe` keyword (Chromium 93+) keep the second declaration and stop centring
+ * once the content is taller than the page, so nothing is clipped past the top
+ * edge at 200% zoom; older TV engines drop it and keep plain `center`.
+ * `overflow-y:auto` is the companion — the page is `position:absolute` with a
+ * definite height and `contain: style size !important`, so without it a form
+ * taller than the viewport is simply unreachable.
+ * -------------------------------------------------------------------------- */
+
+.standalonePage {
+    /* Module-local lengths, not §2 tokens. Declared on the shared page class so
+       the other session screens in §8 can use the same column width. */
+    --jflix-login-col: 450px;
+}
+
+#loginPage {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    justify-content: safe center;
+    overflow-y: auto;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+/* The one wrapper that centres the form (`index.html:2`). It keeps its
+   `.padded-left`/`.padded-right` gutter from 10-global.css §7 and loses
+   `.margin-auto-y`'s auto margins, which would otherwise absorb the free space
+   before `justify-content` ever saw it and defeat the `safe` centring above.
+   `padding-bottom` needs `!important` for the same reason as the page. */
+#loginPage > .padded-bottom-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 0;
+    margin-bottom: 0;
+    padding-top: var(--jflix-space-8);
+    padding-bottom: var(--jflix-space-8) !important;
+}
+
+/* ----------------------------------------------------------------------------
+ * 2. Backdrop wash (§3.14 "Background")
+ *
+ * The splashscreen image lands on `.backdropContainer` (fixed, z-index:-1) and
+ * `.backgroundContainer` (fixed, opaque) is the sheet over it. Both are
+ * siblings of the app-layout root, OUTSIDE `#loginPage`, and `.mainAnimatedPage`
+ * is `contain: style size !important` — so §3.14 is explicit that the wash goes
+ * here and NEVER on `#loginPage::before`.
+ *
+ * Reaching a fixed sibling from the page needs `body`, so this is a `:has()`
+ * ENHANCEMENT (house rule 2): one `:has()`, its own rule, never grouped. On an
+ * engine without `:has()` (webOS <=23 / Tizen <=2022) the rule is dropped whole
+ * and the login page keeps the flat `--jflix-surface-0` sheet — which is
+ * exactly what §3.14 specifies for the no-backdrop case anyway.
+ *
+ * `.withBackdrop` is the gate, not decoration: `backdrop.js:115-121` adds it
+ * only while an image is actually displayed. Without it (this test server has
+ * no splash screen configured) the page must stay "full-viewport
+ * --jflix-surface-0", per §3.14's picker bullet.
+ * `opacity:1` replaces stock's flat `.86` dim (_theme.scss:135-137) so the
+ * graded scrims below are the only thing darkening the art.
+ * (1,3,1) beats stock's (0,2,0).
+ * -------------------------------------------------------------------------- */
+
+body:has(#loginPage:not(.hide)) .backgroundContainer.withBackdrop {
+    opacity: 1;
+    background-color: rgba(0, 0, 0, .55);
+    background-image:
+        var(--jflix-scrim-top),
+        linear-gradient(0deg, rgba(0, 0, 0, .8), transparent 30%);
+}
+
+/* ----------------------------------------------------------------------------
+ * 3. Manual sign-in card (§3.14 "Manual form")
+ *
+ * `form{max-width:54em}` (site.scss:128-138) only applies above 50em and is
+ * (0,0,1); `#loginPage .manualLoginForm` is (1,1,0) and wins at every width, so
+ * the mobile width has to be set here — stock leaves it unconstrained at 390px
+ * (measured 364px).
+ * -------------------------------------------------------------------------- */
+
+/* The border is an ADDITION to §3.14, flagged in the module report: whenever no
+   splash image is configured (the state of every default install, and of
+   _shots/baseline) a 75%-black card sits on a near-black page with no edge at
+   all. The hairline gives it one and disappears into the black over artwork.
+   No shadow — §7.1 forbids one at rest. */
+#loginPage .manualLoginForm {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: var(--jflix-login-col);
+    margin: 0 auto;
+    padding: 48px 56px 40px;
+    background: rgba(0, 0, 0, .75);
+    border: 1px solid var(--jflix-line-hairline);
+    border-radius: var(--jflix-radius-sm);
+}
+
+/* §3.14 gives the card fill as the literal `rgba(0,0,0,.75)`, which cannot
+   invert. Measured on html[data-theme="light"]: the card composited to
+   rgb(62,62,62) while --jflix-text-primary had flipped to #0B0B0B — the
+   heading and every label on the sign-in card rendered at 1.6:1, which §7.1's
+   light-theme gate ("no unreadable text") fails outright. Mirrored to a white
+   panel: 19.0:1 over the light page and 15.2:1 over a dark backdrop image.
+   (1,2,1) beats the base rule's (1,1,0).
+   SPEC: add the light card fill to §2.17 / §3.14. */
+html[data-theme="light"] #loginPage .manualLoginForm {
+    background: rgba(255, 255, 255, .88);
+}
+
+/* §3.14: "Below 740px the card background disappears entirely and the form sits
+   on the page." The wrapper's `--jflix-gutter` padding then supplies the inset,
+   and the card's own padding goes with the card — 40px of it was only ever the
+   panel's bottom inset, and left as-is it doubles the gap to the button stack. */
+@media (max-width: 739px) {
+    #loginPage .manualLoginForm {
+        padding: 0;
+        background: transparent;
+        border-color: transparent;
+    }
+
+    /* The light-theme fill above is (1,2,1) and specificity beats source order,
+       so it has to be dropped at the same weight or a light-theme phone keeps
+       a white panel that the spec says should not be there. */
+    html[data-theme="light"] #loginPage .manualLoginForm {
+        background: transparent;
+    }
+}
+
+/* The heading's own wrapper is `.padded-left.padded-right.flex.justify-content-
+   center`, so 10-global.css §7 pushes a 4% gutter INSIDE the 450px card and the
+   title is centred. Both are undone: the reference left-aligns the sign-in
+   heading, and the card supplies its own padding. (1,3,0) beats the gutter
+   rules' (0,2,0) and the utility class's (0,1,0). */
+#loginPage .manualLoginForm > div.padded-left {
+    padding-left: 0;
+    padding-right: 0;
+    justify-content: flex-start;
+}
+
+/* §3.14: `font: var(--jflix-type-h2)` at 32px, --jflix-text-primary,
+   margin-bottom 24. The shorthand's unitless 1.2 line-height re-resolves
+   against the 32px, and §2.4's tracking law gives -0.012em for 20-39px.
+   `h1.sectionTitle` is one of the four headings 10-global.css §2 explicitly
+   hands to this module. */
+#loginPage .manualLoginForm h1.sectionTitle {
+    font: var(--jflix-type-h2);
+    font-size: 32px;
+    letter-spacing: -0.012em;
+    color: var(--jflix-text-primary);
+    margin: 0 0 var(--jflix-space-6);
+}
+
+/* ----------------------------------------------------------------------------
+ * 4. Submit, the secondary stack and the disclaimer
+ *
+ * The white Primary and the neutral Secondary fills come from 10-global.css §9
+ * — only geometry is set here. `.emby-button.block{margin:.25em 0;width:100%}`
+ * (emby-button.scss:78-84) is (0,2,0); every selector below carries an id.
+ * -------------------------------------------------------------------------- */
+
+#loginPage .manualLoginForm .button-submit {
+    width: 100%;
+    min-height: var(--jflix-control-h-lg);
+    margin: var(--jflix-space-6) 0 0;
+}
+
+/* Shown only when the manual form was opened from a profile card
+   (`index.js:138-142`); its wrapper `div` carries an inline `margin-top:.5em`. */
+#loginPage .manualLoginForm .btnCancel {
+    width: 100%;
+    min-height: var(--jflix-control-h);
+    margin: var(--jflix-field-gap) 0 0;
+}
+
+/* `.readOnlyContent` carries an inline `margin:.5em auto 1em` (index.html:36)
+   and `max-width:54em` above 50em (site.scss:128-132). The inline margin is
+   left alone deliberately — `padding-top` reaches the same ~24px gap under the
+   card without needing `!important` to out-rank an inline style. */
+#loginPage .readOnlyContent {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: var(--jflix-login-col);
+    padding-top: var(--jflix-space-4);
+}
+
+/* §3.14: full width, --jflix-field-gap apart. Hidden buttons (`.btnManual`,
+   `.btnQuick`, `.btnSelectServer` are all `.hide` depending on server
+   capabilities) are `display:none`, so their margins collapse away and the
+   visible stack keeps an even rhythm whichever of the four are shown. */
+#loginPage .readOnlyContent > .emby-button {
+    width: 100%;
+    min-height: var(--jflix-control-h);
+    margin: 0 0 var(--jflix-field-gap);
+}
+
+/* Branding disclaimer (login.scss:1-26, `innerHTML` = sanitized markdown).
+   Stock puts `margin-top:2em` on the container; §3.14 puts 24px on the
+   disclaimer itself, so the container's is zeroed rather than doubled. */
+#loginPage .loginDisclaimerContainer {
+    margin-top: 0;
+}
+
+/* `:not(:empty)` because `index.js:302-319` leaves the element in the DOM with
+   an empty `innerHTML` when Branding carries no disclaimer — which is the
+   default — and an unconditional margin would then add 24px of dead space
+   under the button stack on every install. */
+#loginPage .loginDisclaimer:not(:empty) {
+    margin-top: var(--jflix-space-6);
+    font: var(--jflix-type-label);
+    letter-spacing: 0.01em;
+    color: var(--jflix-text-tertiary);
+    text-align: center;
+}
+
+/* ----------------------------------------------------------------------------
+ * 5. "Who's watching" picker (§3.14)
+ *
+ * `.visualLoginForm > #divUsers.itemsContainer.vertical-wrap.centered` is
+ * already `display:flex; flex-wrap:wrap; justify-content:center` (card.scss:
+ * 33-51) — the Netflix row exists, it only needs sizing.
+ *
+ * It renders only when `GET /Users/Public` is non-empty (`index.js:291-298`).
+ * On the jellyflix-test server all four users have `Policy.IsHidden = true`, so
+ * the live login page is always in manual mode; the picker was verified with a
+ * harness probe that injects the exact `loadUserList()` markup
+ * (`login/index.js:145-192`) — see the module report.
+ * -------------------------------------------------------------------------- */
+
+#loginPage .visualLoginForm {
+    width: 100%;
+}
+
+/* §3.14: clamp(24px, 3.5vw, 56px), weight 400 (NOT bold), --jflix-text-primary,
+   margin-bottom 32. The element carries an inline `margin-top:1em`
+   (index.html:32) which is left as-is — it is the gap above the heading.
+   KNOWN SPEC CONFLICT: §7.1 gates on "no type size declared in em or vw", and
+   §3.14 prescribes a vw clamp for exactly this heading. §3.14 wins ("where it
+   gives a number, that number ships"); the underlying concern — independence
+   from `html{font-size}` — is satisfied because both clamp bounds are px.
+   Reported in the module hand-off. */
+#loginPage .visualLoginForm > h1 {
+    font-family: var(--jflix-font);
+    font-weight: 400;
+    font-size: clamp(24px, 3.5vw, 56px);
+    line-height: 1.15;
+    letter-spacing: -0.012em;
+    color: var(--jflix-text-primary);
+    margin-bottom: var(--jflix-space-7);
+}
+
+/* §2.4's tracking law is per rendered size: -0.012em at 20-39px, -0.022em at
+   >=40px. 3.5vw reaches 40px at 1143px of viewport. */
+@media (min-width: 1143px) {
+    #loginPage .visualLoginForm > h1 {
+        letter-spacing: -0.022em;
+    }
+}
+
+/* §3.14: grid gap clamp(16px,2vw,32px), wraps above 5 users. The max-width is
+   what forces the wrap at 5 — flex-wrap alone would fit 8 at 1920.
+   `#divUsers` (1,0,0) beats `.vertical-wrap.centered` (0,2,0). */
+#divUsers {
+    --jflix-login-tile: clamp(84px, 10vw, 200px);
+    --jflix-login-gap: clamp(16px, 2vw, 32px);
+
+    gap: var(--jflix-login-gap);
+    max-width: calc(5 * var(--jflix-login-tile) + 4 * var(--jflix-login-gap));
+    margin: 0 auto;
+    align-items: flex-start;
+}
+
+/* One tile. Stock width is a percentage set by twelve `card.scss` breakpoints
+   (519-521, 539-663: 50% -> 10%); media queries carry no specificity, so this
+   single declaration beats all twelve at once. */
+#divUsers .card.squareCard {
+    width: var(--jflix-login-tile);
+}
+
+/* `.card:not(.show-animation){contain: layout style paint}` (card.scss:25-33)
+   clips descendants to the card's padding box, so the hover scale below would
+   be shaved off. `contain` is only a perf hint here — the login page holds at
+   most a handful of cards — and house rule 5 forbids ADDING containment to the
+   page/shell elements, not removing it from a card. */
+#divUsers .card {
+    contain: none;
+}
+
+/* `.cardBox{margin:.6em}` + `.cardBox-bottompadded{margin-bottom:1.8em
+   !important}` (card.scss:88-102,120-127) fight the flex `gap`. `!important` is
+   allowed here by house rule 3 — stock used it on this exact property. */
+#divUsers .cardBox.cardBox-bottompadded {
+    margin: 0 !important;
+}
+
+/* §3.14 puts the `3px solid transparent` on the AVATAR TILE, which is
+   `.cardScalable` — the box that holds the padder and the image — not on
+   `.cardBox`, which also wraps the name. Reserving the 3px at rest means the
+   tile never shifts when the border turns white. The radius is the tile radius
+   plus the border width so the outer corner stays concentric with the image.
+   (1,1,0) also beats the TV-only `.card.show-focus:not(.show-animation)
+   .cardBox:not(.visualCardBox) .cardScalable{border:.5em solid transparent}`
+   (card.scss:104-108, (0,4,0)), which would eat 10px out of every side. */
+#divUsers .cardScalable {
+    border: 3px solid transparent;
+    border-radius: calc(var(--jflix-radius-tile) + 3px);
+    transition: border-color var(--jflix-dur-fast) var(--jflix-ease-exit);
+}
+
+/* Motion stays on `.cardBox`, the element stock itself scales
+   (`.card.show-animation:focus > .cardBox`), so the name travels with the tile
+   and nothing compounds. The transition replaces stock's `transition:none`
+   (card.scss:93) and, on TV, `.card.show-animation .cardBox{transition:
+   transform 200ms ease-out}`; stock's own `will-change` on that rule is left
+   untouched (house rule 6 forbids ADDING one, not keeping stock's).
+   Named property — never `transition: all`. */
+#divUsers .cardBox {
+    transition: transform var(--jflix-dur-base) var(--jflix-ease-emphasis);
+}
+
+/* §3.14: plate --jflix-surface-2. Stock is
+   `.cardBox:not(.visualCardBox) .cardPadder{background:#202020}` (0,3,0) plus a
+   three-layer shadow at rest (card.scss:245-248) that §7.1 forbids — an id
+   beats both. #202020 is one of 00-tokens.css LIST 1's unowned literals; inside
+   `#divUsers` it is owned here. */
+#divUsers .cardPadder-square {
+    background-color: var(--jflix-surface-2);
+    border-radius: var(--jflix-radius-tile);
+    box-shadow: none;
+}
+
+/* The avatar layers. `.cardImageContainer` (a real avatar) and `.cardContent`
+   also get the tile radius from 35-cards.css, but `.cardImage` — the class the
+   login page uses for the avatar-less fallback (`index.js:177`) — does not, and
+   a square image inside a rounded plate is visible at every corner. */
+#divUsers .cardContent,
+#divUsers .cardImageContainer,
+#divUsers .cardImage {
+    border-radius: var(--jflix-radius-tile);
+}
+
+/* The avatar-less fallback plate. `getDefaultBackgroundClass()` hashes the user
+   name onto `.defaultCardBackground1…5`, which the dark theme paints five
+   Jellyfin blues (themes/dark/theme.scss:5-22, one of them the literal
+   #00a4db) — §7.1's "zero visible blue" gate, on the first screen of the
+   product. 35-cards.css re-points all five at the surface ladder, but two of
+   those steps (surface-1 at 1.16:1 against the page) leave a profile tile
+   effectively invisible, and §3.14 asks for ONE plate here: --jflix-surface-2.
+   (1,1,0) beats `.defaultCardBackgroundN` (0,1,0) either way, so the picker no
+   longer depends on the cards module for the blue gate. */
+#divUsers .cardImage {
+    background-color: var(--jflix-surface-2);
+}
+
+/* The fallback person glyph. Stock gives `.cardPadder .cardImageIcon` a colour
+   (_theme.scss:242-244) but this one sits inside `.cardImage`, not the padder,
+   so it inherits the page text colour instead. */
+#divUsers .cardImageIcon {
+    color: var(--jflix-text-secondary);
+}
+
+/* §3.14 name: margin-top 12, font body, --jflix-text-tertiary, centred, one
+   line ellipsised. `.cardFooter{padding:.3em .3em .5em}` and
+   `.cardText{padding:.06em 2px}` are both (0,1,0). `.cardTextCentered
+   {text-align:center !important}` is deliberately left alone — centred under a
+   square avatar is what the reference does. Stock already supplies
+   `white-space:nowrap; overflow:hidden; text-overflow:ellipsis`. */
+#divUsers .cardFooter {
+    padding: 0;
+    margin-top: var(--jflix-space-3);
+}
+
+#divUsers .cardText {
+    padding: 0;
+    font: var(--jflix-type-body);
+    color: var(--jflix-text-tertiary);
+    transition: color var(--jflix-dur-fast) var(--jflix-ease-exit);
+}
+
+/* Hover is gated on a real pointer (house rule 10) so a tap does not leave a
+   tile stuck in the hover state. `--jflix-line-invert` is #FFF on dark and
+   #0B0B0B on light — §3.14 says `#FFF`, but the literal would be invisible on
+   the light theme's near-white page (§7.1's light-theme gate). */
+@media (hover: hover) and (pointer: fine) {
+    #divUsers .card:hover > .cardBox {
+        transform: scale(1.04);
+    }
+
+    #divUsers .card:hover > .cardBox > .cardScalable {
+        border-color: var(--jflix-line-invert);
+    }
+}
+
+/* Its own rules, never grouped with the `:hover` above: a selector list
+   containing `:focus-visible` is dropped WHOLE by engines that lack the
+   pseudo-class (Tizen 2021), which would take the hover state with it. */
+#divUsers .card:focus-visible > .cardBox {
+    transform: scale(1.04);
+}
+
+#divUsers .card:focus-visible > .cardBox > .cardScalable {
+    border-color: var(--jflix-line-invert);
+}
+
+/* DELIBERATE DEVIATION from §4.3's "the ring goes on the card ROOT, outside the
+   scaled plate". That wording is written for a poster card, where the root IS
+   the plate; a profile card's root also wraps the name strip, so the global
+   `button:focus-visible` ring (10-global.css §5) drew a square box around tile
+   + label, cutting across the rounded tile border §3.14 asks for. Moved onto
+   the plate — the same move 35-cards.css already makes for TV focus, and the
+   same reason it gives ("the ring floated off the artwork").
+   Scoped `html:not(.layout-tv)` so it cannot out-specify that TV rule and drop
+   its --jflix-elev-tv layer. The transparent `outline` from the global rule is
+   NOT reset: it is the Windows-High-Contrast vehicle and must stay on the
+   focused element itself. */
+html:not(.layout-tv) #divUsers .card:focus-visible {
+    box-shadow: none;
+}
+
+html:not(.layout-tv) #divUsers .card:focus-visible > .cardBox > .cardScalable {
+    box-shadow: var(--jflix-focus-ring);
+}
+
+#divUsers .card:hover .cardText {
+    color: var(--jflix-text-primary);
+}
+
+#divUsers .card:focus .cardText {
+    color: var(--jflix-text-primary);
+}
+
+/* TV: `:focus`, not `:focus-visible` (§4.5 — the app drives focus
+   programmatically). §3.14 asks for scale(1.06) here; stock
+   `.card.show-animation:focus > .cardBox{transform:scale(1.07)}` is (0,3,0) and
+   this is (1,4,1). The ring is already on the card root via
+   `.show-focus:focus` in 10-global.css §5 (`--jflix-focus-ring` resolves to
+   `--jflix-focus-ring-tv` under html.layout-tv). */
+html.layout-tv #divUsers .card:focus > .cardBox {
+    transform: scale(1.06);
+}
+
+html.layout-tv #divUsers .card:focus > .cardBox > .cardScalable {
+    border-color: var(--jflix-line-invert);
+}
+
+/* §4.4: when motion is off the white border carries the state on its own — it
+   is a second, non-motion channel, so §5.3 is satisfied without the scale.
+   Three separate rules, for the `:focus-visible` reason given above. */
+@media (prefers-reduced-motion: reduce) {
+    #divUsers .card:hover > .cardBox {
+        transform: none;
+    }
+
+    #divUsers .card:focus-visible > .cardBox {
+        transform: none;
+    }
+
+    html.layout-tv #divUsers .card:focus > .cardBox {
+        transform: none;
+    }
+}
+
+/* ----------------------------------------------------------------------------
+ * 6. Mode discriminators (§3.14, enhancement)
+ *
+ * `.hide` is the app's mode switch (`index.js:128-142,218-220`) — these two
+ * rules READ it and never write it, and `:not(.hide)` is the only way "visible"
+ * is ever selected in this file. One `:has()` each, in its own rule, never
+ * grouped (house rule 2); both only refine a `max-width` the base layout
+ * already sets, so an engine without `:has()` loses nothing load-bearing.
+ * -------------------------------------------------------------------------- */
+
+#loginPage:has(.visualLoginForm:not(.hide)) .readOnlyContent {
+    max-width: 340px;
+}
+
+#loginPage:has(.manualLoginForm:not(.hide)) .readOnlyContent {
+    max-width: var(--jflix-login-col);
+}
+
+/* ----------------------------------------------------------------------------
+ * 7. TV
+ * §5.2 puts the D-pad minimum at 48px tall; --jflix-control-h is already 56 on
+ * html.layout-tv (§2.18), but --jflix-control-h-lg is a flat 48 — the §2.18 gap
+ * recorded in 00-tokens.css. Taking the larger of the two keeps the Submit the
+ * tallest control on the screen.
+ * -------------------------------------------------------------------------- */
+
+html.layout-tv #loginPage .manualLoginForm .button-submit {
+    min-height: var(--jflix-control-h);
+}
+
+html.layout-tv #loginPage .readOnlyContent > .emby-button {
+    min-height: var(--jflix-control-h);
+}
+
+/* ----------------------------------------------------------------------------
+ * 8. The other session screens
+ * select server · add server · forgot password · PIN reset · setup wizard.
+ * The brief is "do not let them look broken", so this is deliberately thin:
+ * one column width, one heading size, full-width buttons, and the two stock
+ * rules that actually break — the wizard's white panel and its `.ui-shadow`.
+ *
+ * None of these routes is reachable on the test server (`#/wizard/*` redirects
+ * to `#/login` on a configured server, `#/selectserver` needs MultiServer), so
+ * they are source-verified only — see the module report.
+ * -------------------------------------------------------------------------- */
+
+.addServerForm,
+.forgotPasswordForm,
+.forgotPasswordPinForm {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: var(--jflix-login-col);
+}
+
+.addServerForm > .emby-button,
+.forgotPasswordForm .emby-button,
+.forgotPasswordPinForm .emby-button {
+    width: 100%;
+    min-height: var(--jflix-control-h);
+    margin: 0 0 var(--jflix-field-gap);
+}
+
+/* These pages use `.raised.submit`, not `.button-submit`, so 10-global.css §9's
+   Primary recipe does not reach them and the confirm action would be the same
+   grey as Cancel. The id beats the (0,3,0) neutral recipe. */
+.forgotPasswordForm #btnSubmit {
+    background: var(--jflix-btn-primary-bg);
+    color: var(--jflix-text-on-light);
+}
+
+.forgotPasswordForm #btnSubmit:hover {
+    background: var(--jflix-btn-primary-bg-hover);
+    color: var(--jflix-text-on-light);
+}
+
+/* Headings on the session screens match the sign-in card's 32px rather than the
+   40px `h1` default in 10-global.css §2. */
+#selectServerPage .sectionTitle,
+#forgotPasswordPage h1,
+.addServerForm h1,
+.forgotPasswordPinForm h2 {
+    font: var(--jflix-type-h2);
+    font-size: 32px;
+    letter-spacing: -0.012em;
+    color: var(--jflix-text-primary);
+}
+
+/* Wizard. `.wizardContent` is `.ui-corner-all.ui-shadow` and dashboard.scss:252
+   -258 paints it `#fff` — white panel, white text. The dark theme's
+   `.ui-corner-all{background-color: var(--jf-palette-background-default)}`
+   already wins on source order, but it lands on the page colour, so the panel
+   has no edge at all; surface-1 gives it one. No shadow at rest (§7.1). */
+.wizardContent {
+    background: var(--jflix-surface-1);
+    border-radius: var(--jflix-radius-md);
+    box-shadow: none;
+    padding: var(--jflix-space-6) var(--jflix-space-7) var(--jflix-space-7);
+}
+
+.wizardContent h1 {
+    font: var(--jflix-type-h2);
+    font-size: 32px;
+    letter-spacing: -0.012em;
+    color: var(--jflix-text-primary);
+}
+
+.wizardNavigation {
+    margin-top: var(--jflix-space-7);
+}

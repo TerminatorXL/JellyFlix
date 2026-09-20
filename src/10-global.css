@@ -1,0 +1,744 @@
+/* ============================================================================
+ * JellyFlix — 10-global.css
+ * The page-agnostic layer: page surfaces, typography, links, selection, focus
+ * ring, scrollbars, the page gutter, and the shared control/button recipes.
+ *
+ * Scope discipline — this file must stay page-agnostic. App bar, drawer, rows,
+ * cards, details, library/search, list view, forms/dialogs, player, TV and the
+ * dashboard are owned by their own modules and are NOT styled here.
+ *
+ * Specificity reminder: Custom CSS is the last sheet in the document, so a tie
+ * on specificity is won here. Where stock uses a compound selector
+ * (`[dir="ltr"] .padded-left`, `.layout-desktop ::-webkit-scrollbar`,
+ * `.paper-icon-button-light:hover:not(:disabled)`) this file repeats it exactly.
+ *
+ * KNOWN DEVIATIONS AND HAND-OFFS (details at each site):
+ *   §2   .sectionTitle has no stock font-size, so the bare h1/h2/h3 rules own
+ *        every section heading until the home-rows / library / login / details
+ *        modules claim it.
+ *   §6   scrollbar thumb is --jflix-line-strong, not §2.1's --jflix-surface-5,
+ *        which cannot reach §5.1's 3:1 on any dark surface.
+ *   §7   --jflix-gutter is a % and drifts inside non-full-width containers;
+ *        `.padded-right-withalphapicker` is left to the library module.
+ *   §8   three rules still touch `.emby-button` / `.paper-icon-button-light`
+ *        globally, which §3.16 forbids. All three only UNDO a §2.16 bridge
+ *        side-effect. Needs a §3.16 amendment and a player re-verification.
+ *   §9   `.MuiButton-textPrimary` is what erased the selected top-nav state;
+ *        the shell module must restore it with weight + accent bar.
+ * ========================================================================== */
+
+/* ----------------------------------------------------------------------------
+ * 1. Page surfaces
+ * The bridge in 00-tokens.css already repoints --jf-palette-background-default,
+ * which paints html, .backgroundContainer, .nowPlayingPlaylist, .dialog and
+ * .mainDrawer. These two rules are the belt-and-braces version so the page is
+ * near-black even if a later theme re-declares the palette variable.
+ * -------------------------------------------------------------------------- */
+
+html {
+    background-color: var(--jflix-surface-0);
+    color: var(--jflix-text-secondary);
+}
+
+.backgroundContainer {
+    background-color: var(--jflix-surface-0);
+}
+
+/* Upstream bug (G10): themeManager.setTheme never resolves on its happy path,
+   so autoThemes never adds .force-scroll to <body>. The desktop scrollbar then
+   appears and disappears between routes and the layout shifts ~15px.
+   .hide-scroll / .noScroll are (0,1,0) and still win while a video plays. */
+body {
+    overflow-y: scroll;
+}
+
+/* ----------------------------------------------------------------------------
+ * 2. Typography
+ * The family needs TWO rules: MUI components compile literal font values into
+ * their emotion classes, so :root{--jf-font-*} has no effect (foundation G6).
+ * .material-icons is lowercase and is not matched by [class*="Mui"], but
+ * .MuiIcon-root carries both classes — excluding it keeps the ligature icons.
+ * html{font-size} is deliberately untouched: every stock em (all of card.scss)
+ * resolves against it.
+ * -------------------------------------------------------------------------- */
+
+html,
+body {
+    font-family: var(--jflix-font);
+    font-synthesis: none;
+}
+
+/* (0,2,0), exactly as §2.4 prescribes. `:not(.material-icons)` was dropped:
+   attribute matching is case-sensitive so [class*="Mui"] never matches the
+   lowercase `material-icons` on its own, and an element carrying BOTH is
+   already excluded by :not(.MuiIcon-root). Verified live — nothing matches
+   `[class*="Mui"].material-icons:not(.MuiIcon-root)` on #/home, #/dashboard or
+   #/mypreferencesdisplay. Keeping it would push the rule to (0,3,0), where any
+   later module setting font-family at <=(0,2,0) would silently lose. */
+[class*="Mui"]:not(.MuiIcon-root) {
+    font-family: var(--jflix-font);
+}
+
+/* Type-scale defaults. Page modules override these by class, which always wins
+   over a bare element selector. Tracking is applied separately because the
+   `font` shorthand does not reset letter-spacing.
+   TRANSITIONAL — and the hand-off matters, because `.sectionTitle` carries NO
+   font-size anywhere in the base theme (grepped: librarybrowser.scss:1231-1321
+   gives it layout only; only themes/purplehaze sets a size). These bare element
+   rules therefore own every section heading in the app by default, which is a
+   stronger claim than §2.4 makes — §2.4 scopes --jflix-type-h1 to the
+   details-page item name alone. Until the owning modules land, `h1.sectionTitle`
+   renders at 40px and `h2.sectionTitle` at 24px, so §2.4's row-title step-up
+   and --jflix-type-row-block are inert. OWNERS:
+     h2.sectionTitle  -> home-rows module (§3.4): --jflix-type-row + -0.006em
+     h1.sectionTitle  -> library/search module (§3.12): --jflix-type-h2 + -0.012em
+     login h1 / picker heading -> login module (§3.14): --jflix-type-h2 for
+                         "Logowanie", clamp(24px,3.5vw,56px) WEIGHT 400 (not
+                         bold) for the who's-watching heading
+     .itemName        -> details module (§3.9): --jflix-type-h1
+   Any of those shipping without its rule leaves the heading one step too large. */
+h1 {
+    font: var(--jflix-type-h1);
+    letter-spacing: -0.018em;
+}
+
+h2 {
+    font: var(--jflix-type-h2);
+    letter-spacing: -0.012em;
+}
+
+h3 {
+    font: var(--jflix-type-h3);
+    letter-spacing: 0;
+}
+
+.MuiTypography-h1 {
+    font: var(--jflix-type-h1);
+    letter-spacing: -0.018em;
+}
+
+.MuiTypography-h2 {
+    font: var(--jflix-type-h2);
+    letter-spacing: -0.012em;
+}
+
+.MuiTypography-h3 {
+    font: var(--jflix-type-h3);
+    letter-spacing: 0;
+}
+
+.MuiTypography-body1 {
+    font: var(--jflix-type-body);
+}
+
+.MuiTypography-body2 {
+    font: var(--jflix-type-body-sm);
+}
+
+/* ----------------------------------------------------------------------------
+ * 3. Links
+ * The app ships no global anchor rule, so an unclassed <a> falls back to the
+ * UA's blue. (0,0,1) is the weakest possible selector — anything with a class
+ * (.emby-button, .cardBox, a[data-role="button"]) still wins.
+ * .button-link and .button-flat:hover take --jf-palette-primary-main from stock,
+ * which is now the accent: accent-as-text is forbidden on every surface (§2.3),
+ * so both are re-pointed here.
+ * -------------------------------------------------------------------------- */
+
+a {
+    color: var(--jflix-info);
+}
+
+.button-link {
+    color: var(--jflix-info);
+}
+
+.button-link:hover {
+    color: var(--jflix-text-primary);
+}
+
+.button-flat {
+    color: var(--jflix-text-secondary);
+}
+
+.button-flat:hover {
+    color: var(--jflix-text-primary);
+    background-color: var(--jflix-overlay-hover);
+}
+
+/* ----------------------------------------------------------------------------
+ * 4. Selection
+ * The app has no ::selection rule anywhere (grepped) — free to claim.
+ * Two separate rules on purpose: ::-moz-selection is invalid in Chromium and
+ * would kill the whole selector list.
+ * Surface-5 rather than the accent: §2.3's accent scope is exhaustive and a
+ * selection wash is not in it.
+ * -------------------------------------------------------------------------- */
+
+::selection {
+    background-color: var(--jflix-surface-5);
+    color: var(--jflix-text-primary);
+}
+
+::-moz-selection {
+    background-color: var(--jflix-surface-5);
+    color: var(--jflix-text-primary);
+}
+
+/* ----------------------------------------------------------------------------
+ * 5. Focus ring (§4.3)
+ * Every interactive legacy element ships `outline: none !important`, so the ring
+ * must be a box-shadow; it also follows border-radius, which outline does not do
+ * on old engines. The transparent outline is the Windows-High-Contrast vehicle
+ * (box-shadow is dropped in forced-colors, outline is not) and needs !important
+ * only because stock used !important on the same property.
+ *
+ * :focus-visible on pointer platforms; :focus under html.layout-tv, because the
+ * app drives focus programmatically there. The whole :focus-visible list is
+ * dropped by engines that lack the pseudo-class (Tizen 2021) — those are TV
+ * engines and are served by the :focus block below, so nothing is lost.
+ * -------------------------------------------------------------------------- */
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
+    outline: 2px solid transparent !important;
+    outline-offset: 2px;
+    box-shadow: var(--jflix-focus-ring);
+}
+
+/* Legacy controls carry stock rules that out-specify a bare element selector
+   and would swallow the ring — `.emby-input:required{box-shadow:none}`
+   (emby-input.scss:28-30) is the one that bites on the login page, verified
+   live. Repeating the ring at (0,2,0) ties on specificity and wins on order. */
+.emby-input:focus-visible,
+.emby-textarea:focus-visible,
+.emby-select:focus-visible,
+.emby-button:focus-visible,
+.paper-icon-button-light:focus-visible {
+    outline: 2px solid transparent !important;
+    outline-offset: 2px;
+    box-shadow: var(--jflix-focus-ring);
+}
+
+/* .emby-checkbox is a 1×1px transparent input, so a ring on it would be a
+   white dot. Stock already moves the affordance to the sibling
+   `.checkboxOutline`; the forms module owns turning that into the real ring. */
+.emby-checkbox:focus-visible {
+    box-shadow: none;
+}
+
+/* .show-focus is the stock "draw a ring here" marker, added on the TV layout
+   (54 elements carry it on the TV home page). */
+.show-focus:focus {
+    outline: 2px solid transparent !important;
+    outline-offset: 2px;
+    box-shadow: var(--jflix-focus-ring);
+}
+
+html.layout-tv a:focus,
+html.layout-tv button:focus,
+html.layout-tv input:focus,
+html.layout-tv select:focus,
+html.layout-tv textarea:focus,
+html.layout-tv [role="button"]:focus,
+html.layout-tv [tabindex]:focus {
+    outline: 2px solid transparent !important;
+    outline-offset: 2px;
+    box-shadow: var(--jflix-focus-ring);
+}
+
+/* ----------------------------------------------------------------------------
+ * 6. Scrollbars
+ * Stock: *{scrollbar-color:#3b3b3b #202020} at (0,0,0) and
+ * .layout-desktop ::-webkit-scrollbar{width:.4em} at (0,1,0). The track and
+ * thumb colours are the only stock literals here that are globally visible;
+ * the .4em track width is left alone deliberately (the spec gives no number,
+ * and shrinking it costs hit area).
+ *
+ * DELIBERATE DEVIATION from §2.1, which assigns --jflix-surface-5 to the
+ * scrollbar thumb. §2.1 assumes a lighter track; paired with the transparent
+ * track this file chooses, #3A3A3A sat straight on the #0B0B0B page at
+ * **1.73:1** (measured: `scrollbar-color: rgb(58,58,58) rgba(0,0,0,0)` on
+ * #/home), where stock's #888 was 5.55:1 — an accessibility regression against
+ * the baseline, and under §5.1's 3:1 for UI component boundaries, which §7.1
+ * gates on. surface-5 cannot reach 3:1 against ANY dark surface, so the token
+ * as specified cannot be made to work here: an opaque track only moves the
+ * problem (#3A3A3A on surface-2 is 1.50:1).
+ * --jflix-line-strong composites to rgb(104,104,104) over the page = 3.53:1,
+ * and it inverts with the theme (light: rgba(0,0,0,.42) -> rgb(143,143,143)
+ * on #F7F7F7 = 3.02:1). Hover goes to --jflix-line-invert for a clear
+ * affordance. Both are existing §2.1 tokens; no new value is invented.
+ * SPEC: change §2.1's "scrollbar thumb" row from surface-5 to line-strong,
+ * or add a scrollbar-track token that makes surface-5 legal.
+ * -------------------------------------------------------------------------- */
+
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--jflix-line-strong) transparent;
+}
+
+::-webkit-scrollbar-track {
+    box-shadow: none;
+    background-color: transparent;
+}
+
+::-webkit-scrollbar-track-piece {
+    background-color: transparent;
+}
+
+::-webkit-scrollbar-thumb:vertical {
+    border-radius: var(--jflix-radius-xs);
+    background: var(--jflix-line-strong);
+}
+
+::-webkit-scrollbar-thumb:horizontal {
+    border-radius: var(--jflix-radius-xs);
+    background: var(--jflix-line-strong);
+}
+
+::-webkit-scrollbar-thumb:vertical:hover {
+    background: var(--jflix-line-invert);
+}
+
+::-webkit-scrollbar-thumb:horizontal:hover {
+    background: var(--jflix-line-invert);
+}
+
+/* ----------------------------------------------------------------------------
+ * 7. Page gutter (§2.7, conflict #6)
+ * The single trait that carries most of the "it looks like the reference"
+ * impression: the wordmark, every row title, the first tile of every row, the
+ * hero text block and the details overview all start on one line.
+ * Applied through the app's own mechanism. Stock is
+ * `[dir="ltr"] .padded-left{padding-left:max(3.3%, env(safe-area-inset-left))}`
+ * at (0,2,0) — a bare .padded-left would lose, so both dir variants are written
+ * out. Logical properties are Chromium 87+ and fail on webOS 22 / Tizen 2021.
+ * env() stays inside the max() so notch insets still win on a phone.
+ * -------------------------------------------------------------------------- */
+
+[dir="ltr"] .padded-left {
+    padding-left: max(var(--jflix-gutter), env(safe-area-inset-left));
+}
+
+[dir="rtl"] .padded-left {
+    padding-right: max(var(--jflix-gutter), env(safe-area-inset-right));
+}
+
+[dir="ltr"] .padded-right {
+    padding-right: max(var(--jflix-gutter), env(safe-area-inset-right));
+}
+
+[dir="rtl"] .padded-right {
+    padding-left: max(var(--jflix-gutter), env(safe-area-inset-left));
+}
+
+.emby-scroller {
+    padding-left: max(var(--jflix-gutter), env(safe-area-inset-left));
+    padding-right: max(var(--jflix-gutter), env(safe-area-inset-right));
+}
+
+/* Two known limits of this mechanism, recorded so no module re-discovers them:
+ *
+ * 1. --jflix-gutter is a PERCENTAGE (§2.7 / §0.3 #6: max(16px,4%), 5% on TV),
+ *    and percentage padding resolves against the element's own CONTAINING
+ *    BLOCK, not the viewport. A .padded-left that is not full-viewport-width
+ *    therefore gets a smaller gutter and drifts off the single alignment line
+ *    §1.3 calls load-bearing. Measured on the tv profile at #/login: the outer
+ *    1920px .padded-left computed padding-left 96px while a nested 1080px
+ *    .padded-left computed 54px. Home is unaffected (every gutter consumer
+ *    there — toolbar, row titles, .emby-scroller — is full-width), which is why
+ *    the §7.2 Home alignment gate still passes. The value is left as the spec
+ *    gives it; changing it to 4vw/5vw would fix the drift but is a spec change,
+ *    and §2.9's "% not vw" warning would need re-reading first (it is about
+ *    tile widths inside a scroller, not page padding).
+ *    VERIFY the alignment gate on #/details and #/login, not only #/home.
+ *
+ * 2. `.padded-right-withalphapicker` is NOT claimed here. Its stock 7.5%
+ *    ([dir] variants, librarybrowser.scss:1365-1371, (0,2,0)) is A-Z rail
+ *    CLEARANCE, not a page margin — collapsing it to --jflix-gutter would put
+ *    the last grid column under the rail. HAND-OFF: the library/search module
+ *    (§3.12) owns both dir variants and must re-derive it as
+ *    railWidth + --jflix-gutter once §3.12 sizes the rail. */
+
+/* ----------------------------------------------------------------------------
+ * 8. Shared controls — the bridge carve-outs
+ *
+ * §3.16 forbids restyling `.emby-button`, `.paper-icon-button-light` and
+ * `.material-icons` globally (the player OSD reuses them raw), and §7.2's
+ * Player gate re-states it. Everything cosmetic this section used to do on the
+ * bare classes has therefore been REMOVED:
+ *   - `.emby-button{border-radius}` — stock's own 0.2em now stands; the radius
+ *     moved onto the JellyFlix button recipes in §9, which is where it belongs.
+ *   - `.fab{border-radius:circle}` — only existed to undo the line above;
+ *     stock already ships `.fab{border-radius:50%}` (emby-button.scss:68).
+ *   - `.paper-icon-button-light{border-radius:circle}` — stock already ships
+ *     50% (emby-button.scss:111); the rule was a no-op.
+ *   - both named `transition` lists — they replaced stock's `transition: .2s`,
+ *     but house rule 7 governs what THIS file writes, and the recipes in §9
+ *     now carry a named transition of their own. Stock's shorthand is left
+ *     alone on the bare classes, exactly as the baseline has it.
+ *
+ * What REMAINS is three rules that exist only to UNDO a side-effect the §2.16
+ * bridge introduces, not to restyle anything. This is the one deliberate §3.16
+ * deviation in the foundation, and it cannot be scoped away:
+ * `--jf-palette-primary-main` is now --jflix-accent, and stock paints it onto
+ * `.paper-icon-button-light:hover/:active` (_theme.scss:143-155) and
+ * `.emby-button.show-focus:focus` (_theme.scss:481-484). Scoping the fix to the
+ * four containers §3.16 names (.skinHeader, .mainDrawer, .cardOverlay*,
+ * .detailButton) would leave every icon button on the library toolbar, the
+ * preferences pages, the dashboard AND the OSD turning red — violating §2.3's
+ * exhaustive accent scope and §1.1 ("never as a background wash") everywhere
+ * else. The end state each rule produces is what §3.16/§4.5 specify for those
+ * controls anyway (neutral hover wash; --jflix-surface-3 fill on TV focus).
+ * ACTION REQUIRED: raise this as an amendment to §3.16 — "global button rules
+ * are permitted where they neutralise a bridge side-effect" — and have the
+ * player agent re-verify #videoOsdPage on the `player` page in ALL profiles
+ * before this ships. §7.2's player checkbox cannot be ticked until then.
+ * -------------------------------------------------------------------------- */
+
+/* Same selector and same media gate as _theme.scss:143-158, so touch behaviour
+   is unchanged and specificity ties (stock loses on source order). */
+@media (hover: hover) and (pointer: fine) {
+    .paper-icon-button-light:hover:not(:disabled) {
+        color: var(--jflix-text-primary);
+        background-color: var(--jflix-overlay-hover);
+    }
+}
+
+.paper-icon-button-light:active:not(:disabled) {
+    color: var(--jflix-text-primary);
+    background-color: var(--jflix-overlay-press);
+}
+
+/* TV focus. `.show-focus` is added to every button by the TV layout, and stock
+   `.emby-button.show-focus:focus{background: primary-main}` is (0,3,0) — it
+   out-specifies the ring rule in §5 (0,2,0), so with the bridge in place every
+   focused control on a TV became a solid accent-red bar across the screen
+   (seen on _shots/review-foundation/tv/prefs.png, the "Profil" row). §1.1
+   forbids red as a background wash, §2.3's accent scope does not include focus,
+   and §4.5 + §3.16's TV bullet both specify a --jflix-surface-3 fill plus the
+   TV ring. Matching (0,3,0), so this ties stock and wins on source order.
+   Stock's `transform: scale(1.2)` and `z-index: 1` are untouched (§4.5). */
+.emby-button.show-focus:focus {
+    background: var(--jflix-surface-3);
+    color: var(--jflix-text-primary);
+}
+
+/* Loading indicators. `.docspinner` is fixed at z-index 9999999 and appears on
+   every route, so its four hard-coded #00a4dc layers (loading.scss:26-52) are
+   global chrome. `.progressring-spiner` reads --jf-palette-primary-main and
+   would follow the accent through the bridge. Both are painted
+   --jflix-text-primary rather than the accent: §2.3's accent scope is
+   exhaustive and explicitly excludes borders. */
+.mdl-spinner__layer-1,
+.mdl-spinner__layer-2,
+.mdl-spinner__layer-3,
+.mdl-spinner__layer-4 {
+    border-color: var(--jflix-text-primary);
+}
+
+.progressring-spiner {
+    border-color: var(--jflix-text-primary);
+}
+
+/* The filter-count badge hard-codes #03a9f4 in emby-button.scss:176, so it must
+   be repainted or a piece of Jellyfin blue survives (§7.1).
+   §2.3's badge slot reads "unwatched count badge" and calls the list
+   exhaustive; a filter-count bubble is the same UI primitive as
+   `.countIndicator` (which §2.16 does put on the accent), so it is painted the
+   accent here rather than made a neutral grey dot that no longer reads as
+   "filters are on". SPEC: widen §2.3's badge slot to "count badge (unwatched,
+   filter)" — or say so and this becomes --jflix-surface-5 + --jflix-text-primary.
+   `box-shadow: none` is not optional: stock ships a three-layer Material shadow
+   on this element (emby-button.scss:171) at the same (0,1,0), and §7.1 gates on
+   no shadow at rest. Stock's `z-index: 100000000` is left intact deliberately —
+   the host `.btnFilterWithBubble` is an `.emby-button`, which is
+   `position:relative; z-index:0` (emby-button.scss:3,17), i.e. its own stacking
+   context, so the 1e8 never escapes into §2.12's ladder. */
+.filterButtonBubble {
+    background: var(--jflix-accent);
+    color: var(--jflix-text-on-accent);
+    border-radius: var(--jflix-radius-pill);
+    box-shadow: none;
+}
+
+/* ----------------------------------------------------------------------------
+ * 9. Button recipes (§3.15 / §3.9)
+ * Primary is WHITE, not red (§0.3 #3): the reference's hero Play button is
+ * white, and red-everywhere collides with .button-delete. Secondary is the
+ * neutral grey fill, which the bridge already supplies through
+ * --jf-palette-Button-inheritContainedBg/-HoverBg. Ghost is transparent.
+ * `.button-delete` stays the only filled red button in the product.
+ * -------------------------------------------------------------------------- */
+
+/* --- Secondary (.raised, .fab, a[data-role="button"]) --------------------- */
+/* Rest = --jf-palette-Button-inheritContainedBg (surface-4) and
+   hover = -inheritContainedHoverBg (surface-5) come from the bridge; only the
+   label colour and the focus/active states need a selector here.
+   The :not() guards are load-bearing, not decoration: the markup for the
+   primary CTA is `button.raised.button-submit.block.emby-button`, so a plain
+   `.raised{color:#FFF}` would paint a white label on the white primary fill.
+   Excluding the two variant classes keeps each recipe independent of the
+   order in which these rules happen to be written. */
+a[data-role="button"]:not(.button-submit):not(.button-delete),
+.fab:not(.button-submit):not(.button-delete),
+.raised:not(.button-submit):not(.button-delete) {
+    color: var(--jflix-text-primary);
+}
+
+/* .fab is icon-only — leave its font and its stock 50% radius alone so the
+   glyph keeps its 1.36em size and the button stays round. */
+a[data-role="button"]:not(.button-submit):not(.button-delete),
+.raised:not(.button-submit):not(.button-delete) {
+    font: var(--jflix-type-button);
+    letter-spacing: 0.005em;
+    border-radius: var(--jflix-radius-sm);
+}
+
+/* The named transition lives on the RECIPES, not on the bare `.emby-button`
+   (§3.16 — see §8). (0,3,0), so it replaces stock's `transition: .2s`
+   shorthand on exactly the buttons JellyFlix owns. */
+a[data-role="button"]:not(.button-submit):not(.button-delete),
+.fab:not(.button-submit):not(.button-delete),
+.raised:not(.button-submit):not(.button-delete) {
+    transition:
+        background-color var(--jflix-dur-fast) var(--jflix-ease-exit),
+        color var(--jflix-dur-fast) var(--jflix-ease-exit),
+        box-shadow var(--jflix-dur-fast) var(--jflix-ease-exit),
+        transform var(--jflix-dur-base) var(--jflix-ease-enter);
+}
+
+/* Stock repaints :focus with --jf-palette-secondary-main, which is now #FFF:
+   that would be a white fill under a white label. Keep the rest fill and let
+   the focus ring in §5 carry the affordance. */
+a[data-role="button"]:not(.button-submit):not(.button-delete):focus,
+.fab:not(.button-submit):not(.button-delete):focus,
+.raised:not(.button-submit):not(.button-delete):focus {
+    background: var(--jflix-surface-4);
+    color: var(--jflix-text-primary);
+}
+
+/* Press is instant, release animates (§2.13). */
+a[data-role="button"]:not(.button-submit):not(.button-delete):active,
+.fab:not(.button-submit):not(.button-delete):active,
+.raised:not(.button-submit):not(.button-delete):active {
+    background: var(--jflix-surface-5);
+    transform: scale(.98);
+    transition-duration: 0ms;
+}
+
+/* --- Primary (.button-submit) --------------------------------------------- */
+/* The FILL comes from --jflix-btn-primary-bg-*, never from a literal. On
+   html[data-theme="light"] the label token --jflix-text-on-light flips to
+   #FFFFFF (§2.17), so a hard-coded white fill rendered white-on-white — 1.00:1
+   on the login Submit, every dashboard Save and every MUI contained-primary
+   button. Both halves of the pair flip together now: #FFF on #0B0B0B dark
+   (19.68:1, §5.1 row 7) and #0B0B0B fill with a #FFF label on light (18.37:1),
+   which is what §2.17's light-specific rule asks for.
+   Colour and geometry are split because `.button-submit` is not always a text
+   button: apps/legacy/controllers/playback/queue/index.html:106-127 puts it on
+   six `is="paper-icon-button-light"` D-pad buttons, where the radius would
+   flatten the 50% circle, the 14px font would re-base the em-sized
+   .material-icons glyph inside it and min-height would stretch it. Stock only
+   sets background/color on the bare class, so the split restores that. */
+.button-submit {
+    background: var(--jflix-btn-primary-bg);
+    color: var(--jflix-text-on-light);
+}
+
+.button-submit:not(.paper-icon-button-light) {
+    font: var(--jflix-type-button);
+    letter-spacing: 0.005em;
+    min-height: var(--jflix-control-h);
+    border-radius: var(--jflix-radius-sm);
+    transition:
+        background-color var(--jflix-dur-fast) var(--jflix-ease-exit),
+        color var(--jflix-dur-fast) var(--jflix-ease-exit),
+        box-shadow var(--jflix-dur-fast) var(--jflix-ease-exit),
+        transform var(--jflix-dur-base) var(--jflix-ease-enter);
+}
+
+.button-submit:hover {
+    background: var(--jflix-btn-primary-bg-hover);
+    color: var(--jflix-text-on-light);
+}
+
+/* Stock repaints :focus with --jf-palette-secondary-main, so the fill and label
+   are re-asserted. TWO specificities on purpose: the bare (0,2,0) beats stock's
+   own `.button-submit:focus` (0,2,0) on source order, and the (0,3,0) compound
+   is needed on TV, where every button carries `.show-focus` and stock
+   `.emby-button.show-focus:focus{background: primary-main}` (0,3,0) would
+   otherwise paint the white Primary accent-red — on the default-focused CTA of
+   every TV screen (§0.3 #3, §2.3, §7.2 Login "Submit is the white Primary").
+   It must stay AFTER the .emby-button.show-focus:focus rule in §8. */
+.button-submit:focus,
+.emby-button.button-submit:focus {
+    background: var(--jflix-btn-primary-bg);
+    color: var(--jflix-text-on-light);
+}
+
+.button-submit:active {
+    background: var(--jflix-btn-primary-bg-active);
+    transform: scale(.98);
+    transition-duration: 0ms;
+}
+
+.button-submit:disabled {
+    background: var(--jflix-btn-primary-bg-disabled);
+    color: var(--jflix-text-disabled);
+    cursor: not-allowed;
+}
+
+/* --- Destructive (.button-delete) ----------------------------------------- */
+/* Fill and label come from --jf-palette-error-main / -contrastText, which the
+   bridge deliberately leaves at the stock, duller #C62828 (§0.3 #12).
+   This is the only filled red button in the product. */
+.button-delete:not(.paper-icon-button-light) {
+    font: var(--jflix-type-button);
+    letter-spacing: 0.005em;
+    min-height: var(--jflix-control-h);
+    border-radius: var(--jflix-radius-sm);
+    transition:
+        background-color var(--jflix-dur-fast) var(--jflix-ease-exit),
+        color var(--jflix-dur-fast) var(--jflix-ease-exit),
+        box-shadow var(--jflix-dur-fast) var(--jflix-ease-exit),
+        transform var(--jflix-dur-base) var(--jflix-ease-enter);
+}
+
+/* The markup is `button.raised.button-delete`, and stock's
+   `a[data-role="button"],.fab,.raised{&:hover}` (_theme.scss:167-178) is
+   (0,2,0) while `.button-delete` is (0,1,0) — so without this rule the
+   destructive button greyed out to --jflix-surface-5 on hover (visible on the
+   dashboard's "Ponowne uruchomienie" / "Zamknij" pair). The `:not()` guards on
+   the neutral recipe above cover the JellyFlix rules but not stock's.
+   The fill is held steady rather than lifted: §2.3 gives --jflix-danger no
+   hover value and §3.18 calls this "the only filled red button in the product".
+   SPEC: add a --jflix-danger-hover row to §2.3 if a lift is wanted. */
+.button-delete:hover {
+    background: var(--jflix-danger);
+    color: #FFFFFF;
+}
+
+/* Same two specificities as the Primary, and for the same TV reason. */
+.button-delete:focus,
+.emby-button.button-delete:focus {
+    background: var(--jflix-danger);
+    color: #FFFFFF;
+}
+
+/* --- MUI buttons ---------------------------------------------------------- */
+/* MUI reads per-instance --variant-* custom properties declared on the emotion
+   class, which is (0,1,0); the stable MuiButton-* classes tie on specificity
+   and win on source order. Both the variable and the property are set, because
+   different MUI versions consume them differently. */
+.MuiButton-root {
+    border-radius: var(--jflix-radius-sm);
+    text-transform: none;
+    font: var(--jflix-type-button);
+    letter-spacing: 0.005em;
+    min-height: var(--jflix-control-h);
+}
+
+/* Same token pair as `.button-submit` — never a literal, or the light theme
+   renders a white label on a white fill. */
+.MuiButton-containedPrimary {
+    --variant-containedBg: var(--jflix-btn-primary-bg);
+    --variant-containedColor: var(--jflix-text-on-light);
+
+    background-color: var(--jflix-btn-primary-bg);
+    color: var(--jflix-text-on-light);
+}
+
+.MuiButton-containedPrimary:hover {
+    background-color: var(--jflix-btn-primary-bg-hover);
+}
+
+.MuiButton-containedPrimary:active {
+    background-color: var(--jflix-btn-primary-bg-active);
+}
+
+.MuiButton-containedInherit {
+    --variant-containedBg: var(--jflix-surface-4);
+    --variant-containedColor: var(--jflix-text-primary);
+
+    background-color: var(--jflix-surface-4);
+    color: var(--jflix-text-primary);
+}
+
+.MuiButton-containedInherit:hover {
+    background-color: var(--jflix-surface-5);
+}
+
+.MuiButton-outlinedPrimary {
+    --variant-outlinedColor: var(--jflix-text-primary);
+    --variant-outlinedBorder: var(--jflix-line-subtle);
+
+    color: var(--jflix-text-primary);
+    border-color: var(--jflix-line-subtle);
+}
+
+.MuiButton-outlinedPrimary:hover {
+    background-color: var(--jflix-overlay-hover);
+    border-color: var(--jflix-line-strong);
+}
+
+/* This rule exists to neutralise accent-as-text, which every MUI
+   `color="primary"` text button triggers through the bridge (§2.3 forbids
+   accent-as-text on every surface).
+   HAND-OFF — READ BEFORE STYLING THE SHELL: the modern top-nav links are
+   `a.MuiButton-textPrimary.MuiButton-colorPrimary`, and this rule is what
+   erased their selected state. Measured on #/movies: the active "Filmy" link
+   now computes rgb(255,255,255)/600, identical to its three
+   `MuiButton-textInherit` siblings, where the baseline had rgb(0,164,220). It
+   is the CORRECT rest colour per §2.3, but §3.1 requires the selected link to
+   carry TWO channels and §5.3 forbids dropping a state channel, so the shell
+   module MUST out-specify this for `header a.MuiButton-colorPrimary` and add
+   weight 700 plus the 2px accent bar. Until it does, "you are here" is
+   invisible on every profile. */
+.MuiButton-textPrimary {
+    --variant-textColor: var(--jflix-text-primary);
+
+    color: var(--jflix-text-primary);
+}
+
+.MuiButton-textPrimary:hover {
+    background-color: var(--jflix-overlay-hover);
+}
+
+/* No blanket `color: inherit` here. That neutralised every MUI icon-button
+   colour variant app-wide — including `MuiIconButton-colorError` on the
+   dashboard's device/user/plugin row actions, which is the only visual
+   distinction between a benign and a destructive row action on pages this
+   foundation is never screenshotted against. Only the variant the BRIDGE
+   breaks is reset: `-colorPrimary` would otherwise resolve to --jflix-accent.
+   `-colorError` / `-colorSuccess` / `-colorWarning` keep their palette values
+   (error-main is deliberately left at stock #C62828, §0.3 #12), and
+   `-colorInherit` is MUI's own default. */
+.MuiIconButton-root {
+    --IconButton-hoverBg: var(--jflix-overlay-hover);
+
+    border-radius: var(--jflix-radius-circle);
+}
+
+.MuiIconButton-colorPrimary {
+    color: var(--jflix-text-primary);
+}
+
+.MuiIconButton-root:hover {
+    background-color: var(--jflix-overlay-hover);
+}
+
+.MuiIconButton-root:active {
+    background-color: var(--jflix-overlay-press);
+}
+
+/* The disabled colour is set in the bridge (--jf-palette-action-disabled), not
+   here: MUI's own rule is `<emotion-hash>.Mui-disabled` at (0,2,0) and a bare
+   `.Mui-disabled{color:…}` at (0,1,0) loses to it — verified live, the disabled
+   pagination buttons on #/movies still reported the stock rgba(255,255,255,.3).
+   Re-pointing the variable is cascade-proof because MUI's rule reads it. */

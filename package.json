@@ -1,0 +1,15 @@
+{
+  "name": "jellyflix",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Netflix-inspired theme for Jellyfin 12.x web client",
+  "type": "module",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "apply": "node tools/apply.mjs",
+    "shoot": "node tools/shoot.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.63.0"
+  }
+}

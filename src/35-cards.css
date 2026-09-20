@@ -1,0 +1,893 @@
+/* ============================================================================
+ * JellyFlix — 35-cards.css
+ * §3.5 Cards / tiles · §3.6 in-tile hover overlay · §3.7 indicators, badges and
+ * watch progress · §3.8 home "My media" tiles.
+ *
+ * Both card renderers are styled (docs/dom-map/cards-home.md):
+ *   legacy string builder  -> <a class="cardImageContainer cardContent">, ONE
+ *                             element, <bdi> inside .cardText, inline
+ *                             background-image. THE WHOLE HOME PAGE, both
+ *                             layouts, plus favorites / details / Live TV.
+ *   React Card/*.tsx       -> .cardContent > .cardImageContainer, TWO elements,
+ *                             <img> with inline styles. Modern library grids.
+ * Consequence used throughout: `.cardContent .cardImageContainer` matches
+ * NOTHING on the home page, and `.cardImageContainer` matches TWICE per React
+ * desktop card. Every selector below is written to be true in both trees.
+ *
+ * Never touched (house rule 4): the inline background-image, the inline
+ * progress `width`, and .scrollSlider's JS-owned properties.
+ * ========================================================================== */
+
+/* ----------------------------------------------------------------------------
+ * 1. Tile geometry (§2.9, §3.5 "Geometry")
+ *
+ * THE LEVER (§0.1): a media query carries zero specificity, so ONE flat
+ * declaration beats all twelve `card.scss` width breakpoints at once — and the
+ * @media (orientation: landscape) block at card.scss:718-741 with them. The
+ * per-breakpoint values live in --jflix-tiles / --jflix-tiles-wide, which
+ * 00-tokens.css redeclares on :root at 1920/1600/1200/900/600.
+ *
+ * `%` not `vw` is mandatory (§2.9): vw includes a classic scrollbar and
+ * overflows the last card by ~15px. `.scrollSlider` is a block-level flex
+ * container whose width is exactly the scroller content box, so % is exact.
+ * Measured live @1920: scroller content 1766.41px -> 100%/7 = 252.34px pitch,
+ * 244.34px visible after the 8px gap — the number §2.9 predicts.
+ *
+ * Image-resolution ceiling (§2.9): the server still requests the stock size, so
+ * a tile must never exceed ~1.35x the stock pitch. 7-up at 1920 is 1.26x.
+ * -------------------------------------------------------------------------- */
+
+.overflowPortraitCard,
+.overflowSquareCard {
+    width: calc(100% / var(--jflix-tiles));
+}
+
+.overflowBackdropCard,
+.overflowSmallBackdropCard {
+    width: calc(100% / var(--jflix-tiles-wide));
+}
+
+/* Grid shapes (#/movies, #/tv, favorites, legacy library) follow the same
+   tokens so a poster is the same size in a row and in a grid — §1.4's "tile
+   size is the constant, tile count is the variable".
+   CROSS-MODULE: §3.12's owner must not re-declare these widths. */
+.portraitCard,
+.squareCard {
+    width: calc(100% / var(--jflix-tiles));
+}
+
+.backdropCard,
+.smallBackdropCard {
+    width: calc(100% / var(--jflix-tiles-wide));
+}
+
+/* Grids get WHOLE columns below 900px. §2.9's fractional counts (3.4 / 2.6 and
+   2.4 / 1.6) exist to "create a deliberate peek that signals scrollability on
+   touch" — a horizontal scroller reason that does not apply to a wrapping
+   `.vertical-wrap`, where 100%/3.4 lays out three columns and then strands
+   11.8% of the row as dead space. Measured on modern-tablet /movies before this
+   rule: the grid stopped at x=694 of an 820px viewport.
+   The counts are --jflix-tiles rounded (3.4 -> 3, 2.6 -> 3, 2.4/1.6 -> 2),
+   which is also the value that keeps the grid tile closest to the row tile at
+   the same width (§1.4: tile size is the constant). One block covers both
+   bands because they round to the same pair. */
+@media (max-width: 899px) {
+    .portraitCard,
+    .squareCard {
+        width: calc(100% / 3);
+    }
+
+    .backdropCard,
+    .smallBackdropCard {
+        width: calc(100% / 2);
+    }
+}
+
+/* §2.9 trap 3. The landscape block is beaten by the flat rules above on source
+   order, but a rotated phone is the one case where that is load-bearing and
+   cheap to guarantee, so the two overflow rules are restated verbatim. */
+@media (orientation: landscape) {
+    .overflowPortraitCard,
+    .overflowSquareCard {
+        width: calc(100% / var(--jflix-tiles));
+    }
+
+    .overflowBackdropCard,
+    .overflowSmallBackdropCard {
+        width: calc(100% / var(--jflix-tiles-wide));
+    }
+}
+
+/* §2.9 trap 1 — TV out-specifies us at (0,2,0). Repeat with the same selector.
+   --jflix-tiles is 6 / --jflix-tiles-wide 4 under html.layout-tv (§2.18). */
+.itemsContainer-tv > .overflowPortraitCard,
+.itemsContainer-tv > .overflowSquareCard {
+    width: calc(100% / var(--jflix-tiles));
+}
+
+.itemsContainer-tv > .overflowBackdropCard,
+.itemsContainer-tv > .overflowSmallBackdropCard {
+    width: calc(100% / var(--jflix-tiles-wide));
+}
+
+.itemsContainer-tv > .portraitCard,
+.itemsContainer-tv > .squareCard {
+    width: calc(100% / var(--jflix-tiles));
+}
+
+.itemsContainer-tv > .backdropCard {
+    width: calc(100% / var(--jflix-tiles-wide));
+}
+
+/* §2.9 trap 2 — the one card width stock marks !important (card.scss:806). */
+.overflowBackdropCard-textCard {
+    width: calc(100% / var(--jflix-tiles-wide)) !important;
+}
+
+/* --- Tile gap (§2.9) ------------------------------------------------------
+ * The gap is `.cardBox{margin-right}`, never flex `gap` (Chromium 84 /
+ * webOS 22). Stock: .cardBox{margin:.6em} = 8.93px on all four sides, then
+ * emby-scroller.scss re-writes left/right for cards inside an .itemsContainer
+ * at `[dir] .itemsContainer > .card > .cardBox` (0,4,0) to keep the first tile
+ * flush with the row title. Both are restated.
+ * margin-TOP must be 0: the card strip's top edge is the anchor the scroll
+ * arrows in 30-rows.css are positioned against. */
+.cardBox {
+    margin: 0 var(--jflix-tile-gap) var(--jflix-tile-gap) 0;
+}
+
+[dir="ltr"] .itemsContainer > .card > .cardBox {
+    margin-left: 0;
+    margin-right: var(--jflix-tile-gap);
+}
+
+[dir="rtl"] .itemsContainer > .card > .cardBox {
+    margin-right: 0;
+    margin-left: var(--jflix-tile-gap);
+}
+
+/* `.cardBox-bottompadded` is stock's caption allowance and ships !important in
+   two places (card.scss:121 and again under @media (max-width:50em)), both at
+   (0,1,0) — matched at (0,4,0) so one value holds at every width.
+   Two different jobs, so two values:
+     scroller row  — zero. --jflix-row-gap on .verticalSection is the single
+                     source of row rhythm, and the caption block is already
+                     40.5px of (hover-faded) height between the poster and the
+                     next row's title: measured 96.5px of clear space with
+                     stock's 1.8em still in place, which is airy even for a
+                     1920px canvas.
+     grid          — this margin IS the vertical gutter between grid rows, and
+                     there the captions are permanently visible. */
+.itemsContainer:not(.vertical-wrap) > .card > .cardBox-bottompadded {
+    margin-bottom: 0 !important;
+}
+
+.vertical-wrap > .card > .cardBox-bottompadded {
+    margin-bottom: var(--jflix-space-6) !important;
+}
+
+/* --- Radius and plate (§2.10, §3.5) ---------------------------------------
+ * Aspect ratio stays on .cardPadder's padding-bottom % — NOT aspect-ratio
+ * (Chromium 88 / webOS 22 / Tizen 2022) — and the portrait 150% is left
+ * untouched so Latest Movies / Latest Shows stay 2:3 (§0.3 #8).
+ * Four elements hard-code or inherit `.2em`; --jf-card-borderRadius is already
+ * 8px from the bridge, but card.scss:170/206/238 set the literal directly and
+ * must each be beaten. `.cardScalable` gets the radius only so the hover
+ * box-shadow follows the tile's corners. */
+.cardImageContainer,
+.cardContent,
+.blurhash-canvas,
+.cardOverlayContainer,
+.cardScalable {
+    border-radius: var(--jflix-radius-tile);
+}
+
+/* (0,3,0) — ties card.scss:237-240 `.cardBox:not(.visualCardBox) .cardPadder`
+   and wins on order. The box-shadow is stock's, and §7.1 forbids a shadow at
+   rest: every card on the page carried one. */
+.cardBox:not(.visualCardBox) .cardPadder {
+    border-radius: var(--jflix-radius-tile);
+    background-color: var(--jflix-surface-2);
+    box-shadow: none;
+}
+
+/* The other two shadows stock paints at rest on a card (card.scss:243, :271). */
+.cardContent-shadow {
+    box-shadow: none;
+}
+
+.visualCardBox {
+    box-shadow: none;
+}
+
+/* Placeholder glyph on an artless tile. Stock paints it $surface-overlay, i.e.
+   the same colour as the plate it sits on (1.00:1, invisible). LIST 1 in
+   00-tokens.css lists this #202020 as owned by this module. */
+.cardPadder .cardImageIcon {
+    color: var(--jflix-text-quaternary);
+}
+
+/* Hashed placeholder tints — five Jellyfin blues (themes/dark/theme.scss:5-23),
+   including a literal #00a4db, that §7.1's "zero visible blue" gate would
+   otherwise catch on any item with no artwork. Re-pointed at the surface
+   ladder, keeping five distinguishable steps. */
+.defaultCardBackground1 {
+    background-color: var(--jflix-surface-1);
+}
+
+.defaultCardBackground2 {
+    background-color: var(--jflix-surface-4);
+}
+
+.defaultCardBackground3 {
+    background-color: var(--jflix-surface-2);
+}
+
+.defaultCardBackground4 {
+    background-color: var(--jflix-surface-3);
+}
+
+.defaultCardBackground5 {
+    background-color: var(--jflix-surface-5);
+}
+
+.textCardImageContainer {
+    background-color: var(--jflix-surface-2);
+}
+
+/* ----------------------------------------------------------------------------
+ * 2. Card text (§3.5 "Card text", §0.3 #9)
+ *
+ * There is NO .cardFooter on the home page (cardBuilder.js:600-605 only emits
+ * one for cardLayout / logo footers), so the outer caption is
+ * `.cardBox > .cardText`. Both lines are declared at (0,3,0) because
+ * `.cardText{padding:.06em 2px}` and `_theme.scss`'s .cardText-secondary colour
+ * are (0,1,0) and a shorthand at (0,2,0) would otherwise swallow the longhand.
+ *
+ * `.cardTextCentered{text-align:center !important}` is deliberately LEFT ALONE:
+ * §3.5 only says to beat it "if you left-align", and the same class carries the
+ * cast/person captions §3.11 owns, where centred under a circular avatar is
+ * correct. Captions are a Jellyfin surface with no reference counterpart.
+ * -------------------------------------------------------------------------- */
+
+.cardBox > .cardText {
+    padding-left: 2px;
+    padding-right: 2px;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.cardBox > .cardText.cardText-first {
+    font: var(--jflix-type-body-sm);
+    color: var(--jflix-text-primary);
+    padding-top: 2px;
+}
+
+.cardBox > .cardText.cardText-secondary {
+    font: var(--jflix-type-body-sm);
+    color: var(--jflix-text-tertiary);
+}
+
+/* The caption link. Stock underlines it on hover, which reads as a web page,
+   not a tile; the whole plate is already the click target. */
+.cardText > .textActionButton:hover {
+    text-decoration: none;
+    color: var(--jflix-text-primary);
+}
+
+/* --- Fade on desktop home rows only (§0.3 #9) -----------------------------
+ * opacity, NEVER display:none: removing the lines would change .cardBox's
+ * height, the row height and the hover-zoom budget. Accessibility is intact —
+ * the image anchor carries role="img" and a localized aria-label.
+ * Grids, mobile, TV and the details page keep captions permanently visible,
+ * and so do the My-media tiles (§3.8), which are excluded at (0,4,0) below.
+ * Inside the hover media query so a touch device that reports layout-desktop
+ * cannot end up with captions it can never reveal. */
+@media (hover: hover) and (pointer: fine) {
+    html.layout-desktop .homeSectionsContainer .cardBox > .cardText {
+        opacity: 0;
+        transition: opacity var(--jflix-dur-fast) var(--jflix-ease-exit) var(--jflix-delay-hover-out);
+    }
+
+    html.layout-desktop .homeSectionsContainer .card-hoverable:hover .cardBox > .cardText {
+        opacity: 1;
+        transition: opacity var(--jflix-dur-fast) var(--jflix-ease-enter) calc(var(--jflix-delay-hover-in) + 70ms);
+    }
+
+    html.layout-desktop .homeSectionsContainer .card-hoverable:focus-within .cardBox > .cardText {
+        opacity: 1;
+        transition: opacity var(--jflix-dur-fast) var(--jflix-ease-enter) 0s;
+    }
+
+    html.layout-desktop .homeSectionsContainer .card[data-type="CollectionFolder"] > .cardBox > .cardText {
+        opacity: 1;
+    }
+}
+
+/* ----------------------------------------------------------------------------
+ * 3. Hover zoom — the four unlocks (§3.5, §4.1)
+ *
+ * UNLOCK 1 — relax paint containment. `.card:not(.show-animation)` is upgraded
+ * by card.scss:29 to `contain: layout style paint`, which guillotines any
+ * scaled child at the card's border box. Same selector, same specificity
+ * (0,2,0), later in the cascade: no !important needed. `layout style` is KEPT —
+ * it is what keeps a 128-card page cheap — and `contain: none` is never
+ * written. Safe because every absolutely-positioned card internal anchors to
+ * `.cardScalable` (position:relative), not to `.card`.
+ * TV is excluded for free: its cards ARE `.show-animation`.
+ * -------------------------------------------------------------------------- */
+
+.card:not(.show-animation) {
+    contain: layout style;
+}
+
+/* UNLOCK 2 — lift above the neighbours. Removing paint containment also
+ * removes `.card`'s stacking context, so a neighbour's `.cardIndicators
+ * {z-index:1}` would paint over the zoomed tile. 3 sits above that 1 and below
+ * stock `.card:focus{z-index:10 !important}`, so keyboard focus still wins
+ * (§0.3 #11). Applied at 0ms with no transition, per §4.1. */
+.card-hoverable:hover {
+    position: relative;
+    z-index: var(--jflix-z-tile-hover);
+}
+
+.card-hoverable:focus-within {
+    position: relative;
+    z-index: var(--jflix-z-tile-hover);
+}
+
+/* UNLOCK 3 is the `:has()` section lift in 30-rows.css §6.
+ * UNLOCK 4 (remaining clips) needs no CSS: `.emby-scroller` is overflow:visible
+ * on desktop, `#indexPage.mainAnimatedPage` is `contain: style size` (no paint,
+ * no clip) and `body{overflow:hidden auto}` leaves only the viewport edge,
+ * whose budget is the gutter. `body{overflow-x:visible}` is NOT written —
+ * it would re-propagate `visible` and give a zoomed edge tile a real
+ * horizontal scrollbar. */
+
+/* SCALE `.cardBox` AND NOTHING ELSE (§3.5). Not `.scrollSlider` (JS owns its
+ * transform), not `.cardContent` / `.cardImageContainer` / `.cardPadder` (all
+ * `contain: strict`). `.cardBox` has only `contain: style` and no stock desktop
+ * transform. `.card-hoverable` exists only when layoutManager.desktop, so
+ * mobile and TV never match and stock's TV
+ * `.card.show-animation:focus > .cardBox{transform:scale(1.07)}` is untouched.
+ *
+ * transform-origin is `center center` everywhere, including the first and last
+ * tile. §3.5 offers left/right origins for the row edges; measured, the
+ * horizontal budget is never binding — a 244px tile grows 14.6px per side at
+ * 1.12 against a 76.8px gutter at 1920 and a 41px gutter at 1024 — so an
+ * asymmetric origin would only make the first tile move differently from every
+ * other tile, for no clipping benefit.
+ *
+ * The elevation goes on `.cardScalable`, not `.cardBox`: `.cardBox` also
+ * contains the two caption lines, so a shadow there would trace a square-
+ * cornered rectangle around plate + text instead of hugging the tile. */
+.card-hoverable > .cardBox {
+    transform-origin: center center;
+    transition: transform var(--jflix-dur-hover-out) var(--jflix-ease-exit) var(--jflix-delay-hover-out);
+}
+
+.card-hoverable > .cardBox > .cardScalable {
+    transition: box-shadow var(--jflix-dur-hover-out) var(--jflix-ease-exit) var(--jflix-delay-hover-out);
+}
+
+/* Focus-visible reaches the identical end state with ZERO delay — a keyboard
+   user must never wait out the pointer-intent filter (§4.1). `:focus-within` is
+   the hook stock itself uses for the overlay, and the focusable node is the
+   card's own anchor, so this fires exactly when the tile holds focus. */
+.card-hoverable:focus-within > .cardBox {
+    transform: scale(var(--jflix-zoom-row));
+    transition: transform var(--jflix-dur-base) var(--jflix-ease-emphasis) 0s;
+}
+
+.card-hoverable:focus-within > .cardBox > .cardScalable {
+    box-shadow: var(--jflix-elev-3);
+    transition: box-shadow var(--jflix-dur-base) var(--jflix-ease-emphasis) 0s;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .card-hoverable:hover > .cardBox {
+        transform: scale(var(--jflix-zoom-row));
+        transition: transform var(--jflix-dur-base) var(--jflix-ease-emphasis) var(--jflix-delay-hover-in);
+    }
+
+    .card-hoverable:hover > .cardBox > .cardScalable {
+        box-shadow: var(--jflix-elev-3);
+        transition: box-shadow var(--jflix-dur-base) var(--jflix-ease-emphasis) var(--jflix-delay-hover-in);
+    }
+
+    /* §3.5 "Active": scale(1.06), 80ms. */
+    .card-hoverable:active > .cardBox {
+        transform: scale(1.06);
+        transition: transform var(--jflix-dur-instant) var(--jflix-ease-exit) 0s;
+    }
+}
+
+/* --- Grids (§3.5 "Grids", §7.2 Movies/Shows) ------------------------------
+ * A grid has neighbours above AND below; 1.12 overlaps two rows at once and
+ * reads as chaos, so the cap is --jflix-zoom-grid (1.06). (0,4,0) beats the
+ * (0,3,0) row rules above. */
+.vertical-wrap > .card-hoverable:focus-within > .cardBox {
+    transform: scale(var(--jflix-zoom-grid));
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .vertical-wrap > .card-hoverable:hover > .cardBox {
+        transform: scale(var(--jflix-zoom-grid));
+    }
+}
+
+/* "Disable hover-scale entirely when a grid shows more than 60 tiles" (§3.5).
+   ENHANCEMENT: one :has() per rule, never grouped with a plain selector; an
+   engine without :has() simply keeps the 1.06 cap, which is a complete theme.
+   `> .card:nth-child(61)` is the 61st tile — .vertical-wrap has no other
+   element children. */
+html.layout-desktop .vertical-wrap:has(> .card:nth-child(61)) > .card-hoverable:hover > .cardBox {
+    transform: none;
+}
+
+html.layout-desktop .vertical-wrap:has(> .card:nth-child(61)) > .card-hoverable:focus-within > .cardBox {
+    transform: none;
+}
+
+/* ----------------------------------------------------------------------------
+ * 4. In-tile hover overlay (§3.6)
+ *
+ * The full Netflix flyout is a non-goal (§6.1): the card DOM holds no synopsis,
+ * genre or runtime for CSS to reveal. What ships is the restyled stock overlay.
+ * Timing per §4.1: the scrim and the buttons fade in 70ms AFTER the plate
+ * starts scaling, and leave on the 90ms grace with the rest of the tile.
+ * Stock ships `transition: opacity .2s` on the container and a bare
+ * `transition: .2s` (i.e. `all`) on `.cardOverlayButton-hover`; both are
+ * replaced with named lists here.
+ * -------------------------------------------------------------------------- */
+
+.cardOverlayContainer {
+    background-color: transparent;
+    background-image: var(--jflix-scrim-tile-b);
+    background-repeat: no-repeat;
+    background-position: left bottom;
+    background-size: 100% 52%;
+    transition: opacity var(--jflix-dur-hover-out) var(--jflix-ease-exit) var(--jflix-delay-hover-out);
+}
+
+.cardOverlayButton-hover {
+    transition: opacity var(--jflix-dur-hover-out) var(--jflix-ease-exit) var(--jflix-delay-hover-out),
+                background-color var(--jflix-dur-fast) var(--jflix-ease-exit),
+                border-color var(--jflix-dur-fast) var(--jflix-ease-exit),
+                transform var(--jflix-dur-instant) var(--jflix-ease-exit);
+}
+
+.card-hoverable:hover .cardOverlayContainer {
+    transition: opacity var(--jflix-dur-fast) var(--jflix-ease-enter) calc(var(--jflix-delay-hover-in) + 70ms);
+}
+
+.card-hoverable:hover .cardOverlayButton-hover {
+    transition: opacity var(--jflix-dur-fast) var(--jflix-ease-enter) calc(var(--jflix-delay-hover-in) + 70ms),
+                background-color var(--jflix-dur-fast) var(--jflix-ease-exit),
+                border-color var(--jflix-dur-fast) var(--jflix-ease-exit),
+                transform var(--jflix-dur-instant) var(--jflix-ease-exit);
+}
+
+.card-hoverable:focus-within .cardOverlayContainer {
+    transition: opacity var(--jflix-dur-fast) var(--jflix-ease-enter) 0s;
+}
+
+.card-hoverable:focus-within .cardOverlayButton-hover {
+    transition: opacity var(--jflix-dur-fast) var(--jflix-ease-enter) 0s,
+                background-color var(--jflix-dur-fast) var(--jflix-ease-exit),
+                border-color var(--jflix-dur-fast) var(--jflix-ease-exit),
+                transform var(--jflix-dur-instant) var(--jflix-ease-exit);
+}
+
+/* --- Play FAB (§3.6) ------------------------------------------------------
+ * 40px white circle with a dark glyph — the reference's own play control, and
+ * §0.3 #3's "white primary". The glyph carries
+ * `.cardOverlayButtonIcon{font-size:1.669em !important}`, so the button's own
+ * font-size is the only lever: 12px x 1.66956 = 20.03px = --jflix-icon-md.
+ * Stock (0,2,0) `.cardOverlayContainer > .cardOverlayFab-primary` is matched
+ * exactly. */
+.cardOverlayContainer > .cardOverlayFab-primary {
+    width: 40px;
+    height: 40px;
+    margin-top: -20px;
+    margin-left: -20px;
+    padding: 0;
+    font-size: 12px;
+    border-radius: var(--jflix-radius-circle);
+    background-color: var(--jflix-btn-primary-bg);
+    color: var(--jflix-text-on-light);
+}
+
+/* React path: the glyph is an MUI SvgIcon whose emotion class sets
+   `font-size: 1.5rem` — a REM, so the button's own font-size (the legacy
+   lever above) does not reach it, and the icon measured 22.31px inside a 28px
+   button. (0,2,0)/(0,3,0) beat the (0,1,0) emotion class without naming it. */
+.cardOverlayFab-primary > .MuiSvgIcon-root {
+    font-size: var(--jflix-icon-md);
+}
+
+.cardOverlayButton-br > .cardOverlayButton > .MuiSvgIcon-root {
+    font-size: var(--jflix-icon-sm);
+}
+
+/* Tiles narrower than 160px (phones in desktop layout, TV-less small windows)
+   get the 28px variant §3.6 specifies. 160px is the tile, so the query is on
+   the tile count, not the viewport — approximated by the phone/tablet widths
+   at which --jflix-tiles makes a tile that small. */
+@media (max-width: 599px) {
+    .cardOverlayContainer > .cardOverlayFab-primary {
+        width: 28px;
+        height: 28px;
+        margin-top: -14px;
+        margin-left: -14px;
+        font-size: 9.6px;
+    }
+}
+
+/* Stock `.cardOverlayContainer > .cardOverlayFab-primary:hover` (0,3,0) ships
+   `transform: scale(1.4,1.4); transition: .2s` — a 40% jump plus a
+   `transition: all`. Matched at (0,3,0), which also ties 10-global.css §8's
+   `.paper-icon-button-light:hover:not(:disabled)`; both lose on source order. */
+.cardOverlayContainer > .cardOverlayFab-primary:hover {
+    transform: none;
+    background-color: var(--jflix-btn-primary-bg-hover);
+    color: var(--jflix-text-on-light);
+    transition: background-color var(--jflix-dur-fast) var(--jflix-ease-exit),
+                transform var(--jflix-dur-instant) var(--jflix-ease-exit);
+}
+
+/* Press is instant, release animates (§2.13, §4.2). */
+.cardOverlayContainer > .cardOverlayFab-primary:active {
+    transform: scale(.94);
+    background-color: var(--jflix-btn-primary-bg-active);
+    transition-duration: 0s;
+}
+
+/* Landscape tiles put the FAB bottom-left instead of dead centre (§3.6) — a
+   16:9 still is usually a face or a scene, and a centred disc covers it.
+   (0,3,0) beats the centring rule above. */
+.overflowBackdropCard .cardOverlayContainer > .cardOverlayFab-primary,
+.overflowSmallBackdropCard .cardOverlayContainer > .cardOverlayFab-primary,
+.backdropCard .cardOverlayContainer > .cardOverlayFab-primary,
+.smallBackdropCard .cardOverlayContainer > .cardOverlayFab-primary {
+    top: auto;
+    left: 12px;
+    bottom: 12px;
+    margin-top: 0;
+    margin-left: 0;
+}
+
+/* --- Action group (§3.6) --------------------------------------------------
+ * Up to three 28px circles, bottom-right, 8px apart. `gap` is avoided
+ * (Chromium 84 / webOS 22) — the spacing is a margin on the second and later
+ * buttons. The glyphs are 16px: 9.6px x 1.66956 = 16.03px. */
+.cardOverlayButton-br {
+    bottom: var(--jflix-space-2);
+}
+
+[dir="ltr"] .cardOverlayButton-br {
+    right: var(--jflix-space-2);
+}
+
+[dir="rtl"] .cardOverlayButton-br {
+    left: var(--jflix-space-2);
+}
+
+.cardOverlayButton-br > .cardOverlayButton {
+    width: 28px;
+    height: 28px;
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
+    margin: 0;
+    font-size: 9.6px;
+    border: 1.5px solid rgba(255, 255, 255, .5);
+    border-radius: var(--jflix-radius-circle);
+    background-color: var(--jflix-overlay-icon);
+    color: var(--jflix-text-primary);
+}
+
+[dir="ltr"] .cardOverlayButton-br > .cardOverlayButton + .cardOverlayButton {
+    margin-left: var(--jflix-space-2);
+}
+
+[dir="rtl"] .cardOverlayButton-br > .cardOverlayButton + .cardOverlayButton {
+    margin-right: var(--jflix-space-2);
+}
+
+/* Ties 10-global.css §8's (0,3,0) hover wash and wins on order. */
+.cardOverlayButton-br > .cardOverlayButton:hover {
+    border-color: var(--jflix-line-invert);
+    background-color: rgba(42, 42, 42, .9);
+    color: var(--jflix-text-primary);
+}
+
+/* --- Mobile: the permanently-visible overlay buttons (§3.6) ---------------
+ * On layoutManager.mobile the hover menu is never built; instead cardBuilder.js
+ * :828 emits a single always-on button whose visible chip is
+ * `.cardOverlayButtonIcon` — WITHOUT the `-hover` modifier, which is the exact
+ * discriminator between the two paths. Stock ships background-color, width,
+ * height and font-size !important on it (card.scss:472-479), so all four are
+ * matched. 32px chip inside stock's .75em padding = a 51px touch target,
+ * comfortably over §5.2's 44px minimum. */
+.cardOverlayButtonIcon:not(.cardOverlayButtonIcon-hover) {
+    width: 32px !important;
+    height: 32px !important;
+    font-size: var(--jflix-icon-md) !important;
+    background-color: var(--jflix-overlay-icon) !important;
+    border: 1.5px solid rgba(255, 255, 255, .5);
+    border-radius: var(--jflix-radius-circle);
+    color: var(--jflix-text-primary);
+}
+
+/* The centred mobile play FAB variant (options.centerPlayButton). Stock:
+   background-color / padding !important, border .06em (card.scss:488-505). */
+.cardOverlayButton-centered {
+    background-color: transparent !important;
+    border: 0;
+    padding: 0 !important;
+    transition: transform var(--jflix-dur-instant) var(--jflix-ease-exit);
+}
+
+/* ----------------------------------------------------------------------------
+ * 5. Indicators, badges, watch progress (§3.7)
+ *
+ * All pseudo-element-free: every element below already exists in the DOM.
+ * Stock paints a three-layer Material box-shadow on .countIndicator,
+ * .playedIndicator, .videoIndicator and .mediaSourceIndicator — four shadows at
+ * rest on an ordinary home page, which §7.1 forbids.
+ * -------------------------------------------------------------------------- */
+
+.cardIndicators {
+    top: 6px;
+}
+
+[dir="ltr"] .cardIndicators {
+    right: 6px;
+}
+
+[dir="rtl"] .cardIndicators {
+    left: 6px;
+}
+
+.indicator {
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
+    border-radius: var(--jflix-radius-circle);
+    box-shadow: none;
+}
+
+[dir="ltr"] .indicator + .indicator {
+    margin-left: var(--jflix-space-1);
+}
+
+[dir="rtl"] .indicator + .indicator {
+    margin-right: var(--jflix-space-1);
+}
+
+.indicator > .indicatorIcon {
+    font-size: var(--jflix-icon-sm);
+}
+
+/* Unwatched count — one of §2.3's five legal accent slots. The bridge already
+   points it at --jflix-accent through --jf-palette-primary-main; restated here
+   with the §3.7 geometry and an explicit white label (4.75:1). */
+.countIndicator {
+    background: var(--jflix-accent);
+    color: var(--jflix-text-on-accent);
+    font: var(--jflix-type-micro);
+    letter-spacing: 0;
+    box-shadow: none;
+}
+
+/* LIST 2 in 00-tokens.css: the --jf-palette-primary-main bridge turns the
+   WATCHED check accent-red, which reads as an error. §2.3/§3.7 assign it
+   --jflix-success. The glyph colour is --jflix-text-on-light because that token
+   is the only one that flips the right way for both themes: #0B0B0B on the dark
+   theme's #46D369 (11.0:1) and #FFFFFF on the light theme's #1E8E3E (4.9:1).
+   `> svg` is the React path — _theme.scss:461 sets `fill` there explicitly
+   because Safari will not resolve currentColor on an MUI SvgIcon. */
+.playedIndicator,
+.fullSyncIndicator {
+    background: var(--jflix-success);
+    color: var(--jflix-text-on-light);
+    box-shadow: none;
+}
+
+.playedIndicator > svg,
+.fullSyncIndicator > svg {
+    fill: var(--jflix-text-on-light);
+}
+
+/* Hard-codes rgb(51,136,204) in card.scss:159 AND is re-tinted accent-red by
+   the bridge — two ways to fail §7.1. It is a neutral "N versions" bubble. */
+.mediaSourceIndicator {
+    top: 6px;
+    left: 6px;
+    width: 20px;
+    height: 20px;
+    background: var(--jflix-surface-4);
+    color: var(--jflix-text-primary);
+    box-shadow: none;
+}
+
+.mediaSourceIndicator > svg {
+    fill: var(--jflix-text-primary);
+}
+
+.videoIndicator {
+    background: var(--jflix-surface-4);
+    color: var(--jflix-text-primary);
+    box-shadow: none;
+}
+
+.missingIndicator,
+.unairedIndicator {
+    background: var(--jflix-surface-4);
+    color: var(--jflix-text-primary);
+    font: var(--jflix-type-micro);
+    letter-spacing: .06em;
+    padding: 2px 6px;
+    border-radius: var(--jflix-radius-pill);
+}
+
+.timerIndicator {
+    color: var(--jflix-accent);
+}
+
+.timerIndicator-inactive {
+    color: var(--jflix-text-tertiary);
+}
+
+/* --- Watch progress (§3.7, §5.1 row 10) -----------------------------------
+ * The track MUST be opaque: stock's rgba(51,51,51,.8) over artwork measures
+ * 1.42:1 against the red fill, while #141414 is artwork-independent and gives
+ * 3.88:1. The fill's `width` is an inline style written by indicators.js and is
+ * never touched; the fill also gets NO transition — animating a JS-set width
+ * lags every progress update (§4.2). */
+.itemProgressBar {
+    height: 4px;
+    background: var(--jflix-progress-track);
+    border-radius: 0 0 var(--jflix-radius-tile) var(--jflix-radius-tile);
+    overflow: hidden;
+}
+
+.itemProgressBarForeground {
+    background-color: var(--jflix-accent);
+    transition: none;
+}
+
+.itemProgressBarForeground-recording {
+    background-color: var(--jflix-danger);
+}
+
+/* React path (modern grids). `.itemLinearProgress{position:absolute!important}`
+   is stock and stays; the BAR colour is an emotion `sx` hash
+   (useIndicator.tsx:192-197), so it is the one place §3.7 allows !important. */
+.itemLinearProgress {
+    height: 4px;
+    border-radius: 0 0 var(--jflix-radius-tile) var(--jflix-radius-tile);
+    background-color: var(--jflix-progress-track);
+}
+
+.itemLinearProgress .MuiLinearProgress-bar {
+    background-color: var(--jflix-accent) !important;
+    transition: none;
+}
+
+/* The overlay footer that hosts the progress bar / overlay text. Stock's flat
+   rgba(0,0,0,.7) band becomes the §2.6 tile scrim, so text over artwork follows
+   the one rule in §1.2 (art -> scrim -> text). `.innerCardFooterClear` is the
+   progress-only variant and must stay transparent, hence the :not(). */
+.innerCardFooter:not(.innerCardFooterClear) {
+    background: var(--jflix-scrim-tile-b);
+    color: var(--jflix-text-primary);
+    text-shadow: var(--jflix-text-shadow);
+}
+
+/* ----------------------------------------------------------------------------
+ * 6. Home "My media" tiles (§3.8)
+ *
+ * libraryTiles.ts renders these through getBackdropShape(), so they are the
+ * 16:9 `.overflowBackdropCard` shape and take --jflix-tiles-wide per row. The
+ * stable hook is `data-type="CollectionFolder"` on the card root — no hashed
+ * class, present in both renderers, and it never matches a Latest/Continue
+ * Watching tile.
+ *
+ * The library name is baked into the artwork AND rendered as `.cardText`. §3.8
+ * keeps that line visible (a library with no art must still be readable) and
+ * moves it onto the art over a scrim, which also removes the duplicated label
+ * the baseline shows under every tile.
+ * -------------------------------------------------------------------------- */
+
+.card[data-type="CollectionFolder"] > .cardBox {
+    position: relative;
+}
+
+.card[data-type="CollectionFolder"] > .cardBox > .cardScalable::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 52%;
+    background: var(--jflix-scrim-tile-b);
+    border-radius: 0 0 var(--jflix-radius-tile) var(--jflix-radius-tile);
+    pointer-events: none;
+}
+
+/* (0,4,0) — beats the `.cardBox > .cardText` rules in §2 and the centring
+   !important is matched because the label is now a hero line, not a caption. */
+[dir="ltr"] .card[data-type="CollectionFolder"] > .cardBox > .cardText {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 10px;
+    font: var(--jflix-type-h3);
+    color: var(--jflix-text-primary);
+    text-shadow: var(--jflix-text-shadow);
+    text-align: left !important;
+    padding: 0;
+}
+
+[dir="rtl"] .card[data-type="CollectionFolder"] > .cardBox > .cardText {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 10px;
+    font: var(--jflix-type-h3);
+    color: var(--jflix-text-primary);
+    text-shadow: var(--jflix-text-shadow);
+    text-align: right !important;
+    padding: 0;
+}
+
+/* A wide tile clips against the viewport sooner than a poster does, so §3.8
+   caps it at the grid zoom. (0,4,0) beats the row rule. */
+.card[data-type="CollectionFolder"].card-hoverable:focus-within > .cardBox {
+    transform: scale(var(--jflix-zoom-grid));
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .card[data-type="CollectionFolder"].card-hoverable:hover > .cardBox {
+        transform: scale(var(--jflix-zoom-grid));
+    }
+}
+
+/* The `.homeLibraryButton` variant of the same section (homesections.scss ships
+   margin and width !important in two media queries). Not what the test server
+   renders, but a one-line user preference away. */
+.homeLibraryButton {
+    border-radius: var(--jflix-radius-tile);
+    background-color: var(--jflix-surface-2);
+    color: var(--jflix-text-primary);
+}
+
+/* ----------------------------------------------------------------------------
+ * 7. TV focus (§3.5 TV row, §4.5)
+ *
+ * Stock's `scale(1.07)` on `.card.show-animation:focus > .cardBox` is left
+ * completely untouched — §4.5 lists it as behaviour that must survive, and
+ * --jflix-zoom-row is 1 on TV precisely so nothing here competes with it.
+ * What we add is the affordance: 10-global.css §5 puts the ring on the focused
+ * `button`, which on TV is the `.card` ROOT — a box that includes the inter-
+ * tile gap, so the ring floated off the artwork. Moved onto `.cardScalable`,
+ * which is exactly the plate, at (0,3,1) > the global rule's (0,2,2).
+ * Ring first, elevation second: the ring's 7px white band paints over
+ * --jflix-elev-tv's 4px page-coloured spread, leaving contour -> white -> drop.
+ * -------------------------------------------------------------------------- */
+
+html.layout-tv .card:focus {
+    box-shadow: none;
+}
+
+html.layout-tv .card.show-animation:focus > .cardBox > .cardScalable {
+    border-radius: calc(var(--jflix-radius-tile) + 4px);
+    box-shadow: var(--jflix-focus-ring-tv), var(--jflix-elev-tv);
+}
+
+/* §3.5: the caption switches to full-strength text on a focused TV tile. */
+html.layout-tv .card.show-animation:focus > .cardBox > .cardText {
+    color: var(--jflix-text-primary);
+}

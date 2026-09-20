@@ -1,0 +1,1023 @@
+/* ============================================================================
+ * JellyFlix — 00-tokens.css
+ * Design tokens (--jflix-*) and the bridge into Jellyfin's own --jf-palette-*.
+ * Transcribed from docs/design-spec.md §2. Values are the contract: do not
+ * "improve" them here, change the spec first.
+ *
+ * ----------------------------------------------------------------------------
+ * CUSTOMISATION — the handful of knobs a user is meant to edit
+ * ----------------------------------------------------------------------------
+ *   --jflix-accent          brand red. Also update --jf-palette-primary-mainChannel
+ *                           (same colour as "R G B") in the bridge block below.
+ *   --jflix-gutter          page side margin. max(16px, 4%) = the reference's 4% line.
+ *   --jflix-radius-tile     poster / tile corner. Also set --jf-card-borderRadius
+ *                           to the same value (px, never em).
+ *   --jflix-zoom-row        hover zoom on home rows (1 = off). --jflix-zoom-grid
+ *                           does the same for library grids.
+ *   --jflix-density         "comfortable" | "compact" — documentation only; the
+ *                           compact column is applied by selector (see the end
+ *                           of this file), not by reading this value.
+ *   --jflix-delay-hover-in  tile hover-intent delay. 0ms = instant, feels twitchy.
+ * ----------------------------------------------------------------------------
+ *
+ * Why :root — it is (0,1,0), identical to MUI's [data-theme="dark"], and Custom
+ * CSS is the last sheet in the document, so :root wins on source order for every
+ * built-in theme at once. html{} alone would be (0,0,1) and would lose.
+ * ========================================================================== */
+
+:root {
+    /* --- §2.1 Surface ladder — six opaque steps, ≥2 ΔL apart ------------- */
+    --jflix-surface-0: #0B0B0B;         /* page, solid app bar, player, TV bg   */
+    --jflix-surface-1: #141414;         /* bands, sticky toolbars, drawer       */
+    --jflix-surface-2: #1C1C1C;         /* card plate, list rows, admin panels  */
+    --jflix-surface-3: #232323;         /* menus, dialogs, snackbars, MUI paper */
+    --jflix-surface-4: #2B2B2B;         /* field fill, chips, secondary button  */
+    --jflix-surface-5: #3A3A3A;         /* pressed field, scrollbar thumb       */
+
+    --jflix-line-hairline: rgba(255, 255, 255, .08);  /* dividers, table rules  */
+    --jflix-line-subtle: rgba(255, 255, 255, .16);    /* field border at rest   */
+    --jflix-line-strong: rgba(255, 255, 255, .38);    /* field hover, pills     */
+    --jflix-line-invert: #FFFFFF;                     /* focus ring, active 2px */
+
+    /* --- §2.2 Text ------------------------------------------------------- */
+    --jflix-text-primary: #FFFFFF;                      /* 19.7:1 on surface-0 */
+    --jflix-text-secondary: rgba(255, 255, 255, .72);   /* 10.2:1              */
+    --jflix-text-tertiary: rgba(255, 255, 255, .56);    /* 6.5:1 — lowest body */
+    --jflix-text-quaternary: rgba(255, 255, 255, .44);  /* ≥24px / ≥18.66px bold only */
+    --jflix-text-disabled: rgba(255, 255, 255, .38);    /* disabled only       */
+    --jflix-text-on-accent: #FFFFFF;                    /* 4.75:1 on accent    */
+    --jflix-text-on-light: #0B0B0B;                     /* on the white button */
+
+    /* Primary-button FILL. Not in §2's table, but §2.17's light-specific rule
+       ("the primary button inverts to a --jflix-surface-0-on-#0B0B0B pairing,
+       dark fill, white label") cannot be expressed without it: the label token
+       --jflix-text-on-light flips to #FFFFFF on light, so a hard-coded #FFFFFF
+       fill renders white-on-white (1.00:1) on every Submit and every MUI
+       contained-primary button. Both halves of the pair must flip together, so
+       the fill is a token and 10-global.css never writes the literal.
+       Dark:  #FFFFFF fill + #0B0B0B label = 19.68:1 (§5.1 row 7).
+       Light: #0B0B0B fill + #FFFFFF label = 18.37:1.
+       SPEC: add these four rows to §2.2/§2.17. */
+    --jflix-btn-primary-bg: #FFFFFF;
+    --jflix-btn-primary-bg-hover: rgba(255, 255, 255, .80);
+    --jflix-btn-primary-bg-active: rgba(255, 255, 255, .72);
+    --jflix-btn-primary-bg-disabled: rgba(255, 255, 255, .28);
+
+    /* --- §2.3 Accent and semantics --------------------------------------- */
+    /* Accent is allowed in exactly five slots: wordmark · watch-progress fill ·
+       active tab/nav indicator · unwatched count badge · destructive confirm.
+       Accent-as-text is forbidden on every surface (3.58:1 on surface-2). */
+    --jflix-accent: #E11D2E;
+    /* NON-TEXT SURFACES ONLY. White on #F5243A is 4.04:1 — under §5.1's 4.5 —
+       while white on --jflix-accent itself is 4.75:1 (§5.1 row 6, locked). Two
+       of §2.3's five accent slots carry white labels (count badge, destructive
+       confirm); neither may use this value behind text. Value kept as §2.3
+       specifies it. SPEC: say so in §2.3, or darken to #DE1B2E (4.88:1). */
+    --jflix-accent-hover: #F5243A;
+    --jflix-accent-active: #B3121F;
+    --jflix-accent-glow: rgba(225, 29, 46, .35);
+
+    --jflix-success: #46D369;           /* watched check, "new episode"        */
+    --jflix-warning: #F2B01E;           /* star rating (Jellyfin's own value)  */
+    --jflix-danger: #C62828;            /* destructive FILL only               */
+    --jflix-danger-text: #FF6B6B;       /* error text / invalid field border   */
+    --jflix-info: #5AA7FF;              /* links, info chips, snackbar action  */
+
+    /* Opaque on purpose: a translucent track reads 1.42:1 against the red fill
+       over a card plate. #141414 is artwork-independent and gives 3.88:1. */
+    --jflix-progress-track: #141414;
+
+    /* --- §2.4 Type ------------------------------------------------------- */
+    /* Root font-size is off-limits (html{font-size:93%} → 14.88px desktop);
+       every JellyFlix size is px. The type tokens are `font` shorthands, so
+       `font: var(--jflix-type-row)` is a one-liner. The shorthand does NOT
+       reset letter-spacing — apply the tracking column separately. */
+    --jflix-font: "Noto Sans", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --jflix-font-num: "Noto Sans", ui-monospace, monospace;  /* + font-variant-numeric: tabular-nums */
+
+    --jflix-type-display: 800 56px/1.04 var(--jflix-font);   /* tracking -0.022em */
+    --jflix-type-h1: 700 40px/1.10 var(--jflix-font);        /* tracking -0.018em */
+    --jflix-type-h2: 700 24px/1.20 var(--jflix-font);        /* tracking -0.012em */
+    --jflix-type-row: 700 20px/1.30 var(--jflix-font);       /* tracking -0.006em */
+    --jflix-type-h3: 600 17px/1.35 var(--jflix-font);        /* tracking 0        */
+    --jflix-type-body-lg: 400 16px/1.55 var(--jflix-font);
+    --jflix-type-body: 400 14px/1.50 var(--jflix-font);
+    --jflix-type-body-sm: 400 13px/1.45 var(--jflix-font);
+    --jflix-type-label: 600 12px/1.35 var(--jflix-font);     /* tracking +0.01em  */
+    --jflix-type-micro: 700 11px/1.20 var(--jflix-font);     /* +0.06em, uppercase */
+    --jflix-type-button: 600 14px/1 var(--jflix-font);       /* tracking +0.005em */
+    --jflix-type-button-lg: 700 16px/1 var(--jflix-font);
+
+    /* Tracking law: -0.02em ≥40px · -0.012em 20–39px · 0 at 13–19px ·
+       +0.06em ≤12px uppercase. Never letter-space running body text.
+       Never uppercase a string longer than 14 characters (Polish diacritics). */
+
+    /* --- §2.5 Overlays and translucency ---------------------------------- */
+    --jflix-overlay-hover: rgba(255, 255, 255, .08);
+    --jflix-overlay-press: rgba(255, 255, 255, .14);
+    --jflix-overlay-selected: rgba(255, 255, 255, .12);  /* always + a 3px accent bar */
+    --jflix-overlay-glass: rgba(109, 109, 110, .70);     /* secondary button OVER ART */
+    --jflix-overlay-glass-hover: rgba(109, 109, 110, .45); /* over art only; flat → surface-5 */
+    --jflix-overlay-icon: rgba(42, 42, 42, .60);         /* circular icon button over art */
+    --jflix-scrim-modal: rgba(0, 0, 0, .72);             /* dialog backdrop      */
+    --jflix-scrim-tile: rgba(0, 0, 0, .55);              /* hover dim on a tile  */
+
+    /* --- §2.6 Gradient scrims (the load-bearing part of the look) --------- */
+    /* Geometry belongs to the component recipes: top scrim 140px desktop /
+       96px mobile · hero bottom scrim lower 62% · left scrim ≥1000px only ·
+       tile scrim lower 52% · OSD bottom scrim 180px. */
+    --jflix-scrim-top: linear-gradient(180deg, rgba(0, 0, 0, .78) 0%, rgba(0, 0, 0, .42) 46%, rgba(0, 0, 0, 0) 100%);
+    --jflix-scrim-bottom: linear-gradient(0deg, #0B0B0B 0%, rgba(11, 11, 11, .88) 14%, rgba(11, 11, 11, .50) 36%, rgba(11, 11, 11, 0) 66%);
+    --jflix-scrim-left: linear-gradient(90deg, rgba(11, 11, 11, .94) 0%, rgba(11, 11, 11, .74) 26%, rgba(11, 11, 11, .26) 50%, rgba(11, 11, 11, 0) 72%);
+    --jflix-scrim-tile-b: linear-gradient(0deg, rgba(0, 0, 0, .92) 0%, rgba(0, 0, 0, .58) 38%, rgba(0, 0, 0, 0) 78%);
+    --jflix-scrim-osd-b: linear-gradient(0deg, rgba(0, 0, 0, .88) 0%, rgba(0, 0, 0, .45) 45%, rgba(0, 0, 0, 0) 100%);
+
+    /* --- §2.7 Space ------------------------------------------------------ */
+    --jflix-space-1: 4px;
+    --jflix-space-2: 8px;
+    --jflix-space-3: 12px;
+    --jflix-space-4: 16px;
+    --jflix-space-5: 20px;
+    --jflix-space-6: 24px;
+    --jflix-space-7: 32px;
+    --jflix-space-8: 40px;
+    --jflix-space-9: 48px;
+    --jflix-space-10: 64px;
+    --jflix-space-11: 80px;
+    --jflix-space-12: 96px;
+
+    /* Semantic aliases. max(16px,4%) resolves to the spec's whole desktop →
+       phone column by itself (76.8@1920 · 41@1024 · 32.8@820 · 16@390), so the
+       gutter needs no width media queries — only TV (5%) and compact differ.
+       Applied through the app's own .padded-* mechanism, see 10-global.css. */
+    --jflix-gutter: max(16px, 4%);
+    --jflix-row-gap: 48px;
+    --jflix-tile-gap: 8px;
+    --jflix-row-title-gap: 12px;
+    --jflix-section-gap: 40px;
+    --jflix-field-gap: 16px;
+
+    /* --- §2.8 Sizes ------------------------------------------------------ */
+    --jflix-bar-h: 64px;                /* app bar: 64 desktop / 56 tablet / 48 mobile */
+    --jflix-bar-h-2: 48px;              /* second (library) toolbar row, unchanged     */
+    --jflix-control-h: 40px;            /* 44 on pointer:coarse, 36 compact, 56 TV     */
+    --jflix-control-h-lg: 48px;         /* hero primary button, dialog actions         */
+    --jflix-control-h-sm: 32px;         /* toolbar ghost buttons, chips                */
+    --jflix-control-h-dense: 36px;      /* compact (admin) density                     */
+    --jflix-touch-min: 44px;
+    --jflix-tv-target-min: 48px;
+
+    --jflix-icon-sm: 16px;
+    --jflix-icon-md: 20px;
+    --jflix-icon-lg: 24px;
+    --jflix-icon-xl: 28px;
+    --jflix-icon-tv: 32px;
+
+    --jflix-avatar: 32px;               /* rounded square, --jflix-radius-sm    */
+    --jflix-list-row-h: 56px;           /* comfortable; 40 dense, 72 TV         */
+    /* §2.8 gives ONE name (--jflix-list-row-h) four values — "96 large-image /
+       56 compact / 40 dense / 72 TV" — which one name cannot hold. The base
+       keeps 56/40/72 (comfortable/compact/TV) and the large-image variant gets
+       its own name. This is the only --jflix-* name in this file that does not
+       appear in the spec. HAND-OFF: the list-view module (§3.10) reads
+       --jflix-list-row-h-lg for `.listItem` rows that carry a 16:9 image.
+       SPEC: add the row to §2.8. */
+    --jflix-list-row-h-lg: 96px;        /* large-image list row                 */
+    --jflix-table-cell-pad: 12px 16px;
+
+    /* Rendered block height of a row title (size × line-height, rounded up).
+       Declared, not computed: the scroll-arrow anchor in §3.4 needs a length
+       and calc() cannot read a `font` shorthand.
+       RE-DERIVE THIS WHENEVER --jflix-type-row CHANGES. */
+    --jflix-type-row-block: 26px;
+
+    /* Written 0→1 by the optional JS add-on (§6.4). Every consumer must pass a
+       fallback — var(--jflix-scroll, 0) — so the theme is correct without it. */
+    --jflix-scroll: 0;
+
+    /* --- §2.9 Tile geometry ---------------------------------------------- */
+    /* One property drives all 12 card.scss breakpoints, because media queries
+       carry no specificity. Fractional counts below 900px are a deliberate
+       "peek" that signals scrollability where there are no arrows. */
+    --jflix-tiles: 7;                   /* portrait 2:3 tiles per row @≥1920    */
+    --jflix-tiles-wide: 5;              /* 16:9 tiles per row      @≥1920       */
+    --jflix-zoom-row: 1.12;             /* hover scale on home rows             */
+    --jflix-zoom-grid: 1.06;            /* hover scale in library grids         */
+
+    /* --- §2.10 Radius ---------------------------------------------------- */
+    --jflix-radius-xs: 2px;             /* badges, progress bars, quality chips */
+    --jflix-radius-sm: 4px;             /* buttons, inputs, toolbar controls    */
+    --jflix-radius-md: 6px;             /* dialogs, menus, popovers, tooltips   */
+    --jflix-radius-tile: 8px;           /* tiles, poster art, list thumbs       */
+    --jflix-radius-lg: 12px;            /* mobile bottom-sheet top corners      */
+    --jflix-radius-pill: 999px;         /* filter chips, genre pills            */
+    --jflix-radius-circle: 50%;         /* icon FABs, person cards, avatars     */
+
+    /* --- §2.11 Elevation, focus, blur ------------------------------------ */
+    /* No shadows at rest: elevation is for hover/focus and floating layers. */
+    --jflix-elev-0: none;
+    --jflix-elev-1: 0 1px 2px rgba(0, 0, 0, .65);      /* solid app bar, sticky */
+    --jflix-elev-2: 0 4px 12px rgba(0, 0, 0, .55);     /* menus, tooltips       */
+    --jflix-elev-3: 0 10px 28px rgba(0, 0, 0, .68);    /* hovered tile          */
+    --jflix-elev-4: 0 18px 48px rgba(0, 0, 0, .78);    /* dialogs, drawer       */
+    --jflix-elev-tv: 0 0 0 4px var(--jflix-surface-0), 0 12px 32px rgba(0, 0, 0, .8);
+
+    /* Dark contour + white ring ⇒ ≥3:1 against near-black page AND bright art. */
+    --jflix-focus-ring: 0 0 0 2px var(--jflix-surface-0), 0 0 0 4px #FFFFFF;
+    --jflix-focus-ring-tv: 0 0 0 3px var(--jflix-surface-0), 0 0 0 7px #FFFFFF;
+
+    --jflix-text-shadow: 0 1px 3px rgba(0, 0, 0, .9);  /* decorative only, never counts toward WCAG */
+    --jflix-blur: blur(8px);            /* GATED: (hover:hover) and (pointer:fine) + html:not(.layout-tv) */
+
+    /* --- §2.12 z-index ladder -------------------------------------------- */
+    /* Interleaves with the app's own stack: -1 .backdropContainer · 10 .card:focus
+       (stock !important) · 999 .skinHeader · 1099 .mainDrawer · 1100 MUI AppBar ·
+       1200 .MuiDrawer-paper · 1201 .appfooter · 1300 modal · 1400 snackbar ·
+       1500 tooltip. A hovered tile must never exceed 999. */
+    --jflix-z-tile-hover: 3;
+    --jflix-z-row-lift: 4;
+    --jflix-z-row-arrow: 5;
+    --jflix-z-sticky: 900;
+
+    /* --- §2.13 Motion ---------------------------------------------------- */
+    --jflix-dur-instant: 80ms;          /* press feedback                       */
+    --jflix-dur-fast: 120ms;            /* colour/opacity hover, chevron, arrow */
+    --jflix-dur-base: 200ms;            /* transform on hover/focus, menu open  */
+    --jflix-dur-hover-out: 160ms;       /* hover reverse                        */
+    --jflix-dur-slow: 250ms;            /* default colour changes               */
+    --jflix-dur-nav: 400ms;             /* app bar transparent ⇄ solid          */
+    --jflix-dur-dialog: 320ms;          /* dialog enter, drawer slide           */
+    --jflix-dur-hero: 600ms;            /* hero image / gradient cross-fade     */
+    --jflix-dur-osd: 3000ms;            /* player chrome idle timeout           */
+    --jflix-delay-hover-in: 250ms;      /* tile hover-intent delay              */
+    --jflix-delay-hover-out: 90ms;      /* tile hover-leave grace               */
+
+    --jflix-ease-exit: cubic-bezier(.4, 0, .68, .06);       /* colour/border, leaving */
+    --jflix-ease-enter: cubic-bezier(.32, .94, .6, 1);      /* motion/size, arriving  */
+    --jflix-ease-slide: cubic-bezier(.5, 0, .1, 1);         /* panel/overlay slide    */
+    --jflix-ease-emphasis: cubic-bezier(.16, 1, .3, 1);     /* tile zoom              */
+    --jflix-ease-standard: cubic-bezier(.2, 0, 0, 1);       /* fallback               */
+
+    /* Pressed state duration is 0ms — press is instant, release animates. */
+
+    /* --- §2.14 Text labels (localisation hooks) --------------------------- */
+    /* Pseudo-element content is untranslatable, so every literal string the
+       theme injects lives here — this is the single retranslation point. All
+       four are decorative: they sit next to an element that already carries a
+       localized title/aria-label. Server locale on this install is Polish. */
+    --jflix-label-play: "Odtwórz";
+    --jflix-label-seen: "Obejrzane";
+    --jflix-label-resume: "Wznów";
+    --jflix-label-new: "Nowość";
+
+    /* --- §2.15 Density ---------------------------------------------------- */
+    /* Documentation only — the compact column is applied by selector at the
+       end of this file (dashboard, settings, user management, logs, metadata
+       editors), because CSS cannot branch on a custom property's value. */
+    --jflix-density: comfortable;
+}
+
+/* ============================================================================
+ * Responsive token columns
+ * Layout switches are CLASSES (html.layout-desktop|mobile|tv, UA/touch driven);
+ * SIZE is width. Never conflate them — an 820px tablet reports layout-mobile,
+ * a 900px desktop window reports layout-desktop.
+ * ========================================================================== */
+
+/* §2.9 tile counts — ≥1920 is the :root column above */
+@media (max-width: 1919px) {
+    :root {
+        --jflix-tiles: 6;
+        --jflix-tiles-wide: 4;
+    }
+}
+
+@media (max-width: 1599px) {
+    :root {
+        --jflix-tiles: 5;
+        --jflix-tiles-wide: 4;
+    }
+}
+
+@media (max-width: 1199px) {
+    :root {
+        --jflix-tiles: 4;
+        --jflix-tiles-wide: 3;
+    }
+}
+
+@media (max-width: 899px) {
+    :root {
+        --jflix-tiles: 3.4;
+        --jflix-tiles-wide: 2.4;
+    }
+}
+
+@media (max-width: 599px) {
+    :root {
+        --jflix-tiles: 2.6;
+        --jflix-tiles-wide: 1.6;
+    }
+}
+
+/* §2.4 row-title step-up (replaces the reference's vw sizing, §0.3 #15).
+   --jflix-type-row-block must track it: size × 1.3, rounded up. */
+@media (min-width: 1600px) {
+    :root {
+        --jflix-type-row: 700 22px/1.30 var(--jflix-font);
+        --jflix-type-row-block: 29px;
+    }
+}
+
+@media (min-width: 1920px) {
+    :root {
+        --jflix-type-row: 700 24px/1.30 var(--jflix-font);
+        --jflix-type-row-block: 31px;
+    }
+}
+
+/* §2.7 space columns — laptop 1000–1199 */
+@media (max-width: 1199px) {
+    :root {
+        --jflix-row-gap: 40px;
+        --jflix-section-gap: 36px;
+    }
+}
+
+/* §2.7 space columns — tablet 600–999 */
+@media (max-width: 999px) {
+    :root {
+        --jflix-row-gap: 32px;
+        --jflix-tile-gap: 6px;
+        --jflix-row-title-gap: 10px;
+        --jflix-section-gap: 28px;
+        --jflix-bar-h: 56px;
+    }
+}
+
+/* §2.7 space columns — phone <600 */
+@media (max-width: 599px) {
+    :root {
+        --jflix-row-gap: 24px;
+        --jflix-tile-gap: 8px;
+        --jflix-row-title-gap: 8px;
+        --jflix-section-gap: 24px;
+        --jflix-bar-h: 48px;
+        /* KNOWN §2.4/§2.8 CONFLICT — transcribed from §2.8, not derived.
+           §2.8 gives "20 mobile" but §2.4 declares no mobile --jflix-type-row,
+           so the row title is still 700 20px/1.30 below 600px and the real
+           rendered block is 26px. The invariant above ("re-derive whenever
+           --jflix-type-row changes") is therefore violated by the spec itself.
+           HAND-OFF: the home-rows module (§3.4) must NOT anchor the scroll
+           arrows to this token on touch until the spec resolves it — either
+           §2.4 gains a mobile --jflix-type-row of 700 15px/1.3 (which makes 20
+           correct) or §2.8 drops this row. No consumer exists today, so the
+           practical impact is nil. */
+        --jflix-type-row-block: 20px;
+    }
+}
+
+/* §5.2 touch hit targets */
+@media (pointer: coarse) {
+    :root {
+        --jflix-control-h: 44px;
+    }
+}
+
+/* §2.8 / §0.3 #14 read "64 desktop / 56 tablet / 48 mobile (fixed)" as if the
+   three were width steps. They are not: house rule 10 says layout is a CLASS
+   and size is width, and the STATED REASON for the 48px pin —
+   `apps/modern/AppOverrides.scss:33-35`
+   `.layout-mobile .itemBackdrop{margin-top:-48px !important}` — keys on
+   `.layout-mobile`, never on width. Any other reading puts an 8px seam above
+   the details backdrop on an 820px tablet, which reports layout-mobile.
+   DECIDED HERE (measured: modern-tablet 820x1180 is html.layout-mobile):
+     - 48px on EVERY layout-mobile device at any width  ← this rule, (0,1,1)
+     - 56px only for a layout-DESKTOP window at tablet width ← the
+       @media (max-width: 999px) step above, (0,1,0)
+   SPEC: amend §2.8 row 1 and §0.3 #14 to that wording. Both the app-bar and
+   the details modules read this token; neither needs a -56px backdrop
+   compensation while the rule stands. */
+html.layout-mobile {
+    --jflix-bar-h: 48px;
+}
+
+/* ============================================================================
+ * §2.16 Bridge to Jellyfin's --jf-palette-*
+ * One block retints MUI *and* the legacy SCSS, because src/themes/_base/_theme.scss
+ * reads the same variables MUI emits (cssVarPrefix:'jf',
+ * colorSchemeSelector:'[data-theme="%s"]').
+ *
+ * "*Channel" triplets are space-separated `R G B` consumed as
+ * rgba(var(--…Channel) / <alpha>). If you change a -main you MUST change its
+ * -mainChannel too, or half the app keeps the old hue.
+ * ========================================================================== */
+
+:root {
+    /* Backgrounds — html, .backgroundContainer, .dialog, .mainDrawer, .nowPlayingPlaylist */
+    --jf-palette-background-default: var(--jflix-surface-0);
+    --jf-palette-background-defaultChannel: 11 11 11;
+    --jf-palette-background-defaultImage: none;
+    /* MUI menus/popovers/drawer, .appfooter, .emby-select-withcolor */
+    --jf-palette-background-paper: var(--jflix-surface-3);
+    /* drives .detailRibbon's rgba(… / .8) in the dark theme */
+    --jf-palette-background-paperChannel: 35 35 35;
+
+    /* Primary — .countIndicator, .playedIndicator, .fullSyncIndicator,
+       .itemProgressBarForeground, .button-link, .paper-icon-button-light:hover,
+       active tab. The last two are re-pointed by selector in 10-global.css,
+       because accent-as-text and accent-on-hover are outside §2.3's scope. */
+    --jf-palette-primary-main: var(--jflix-accent);
+    --jf-palette-primary-mainChannel: 225 29 46;
+    --jf-palette-primary-dark: var(--jflix-accent-active);
+    --jf-palette-primary-darkChannel: 179 18 31;
+    --jf-palette-primary-light: var(--jflix-accent-hover);
+    --jf-palette-primary-lightChannel: 245 36 58;
+    /* MUST change: stock is rgba(0,0,0,.87) and dark text on red fails. */
+    --jf-palette-primary-contrastText: #FFFFFF;
+    --jf-palette-primary-contrastTextChannel: 255 255 255;
+    /* Declared for completeness; the live consumer of the icon-button tint is
+       rgba(var(--jf-palette-primary-mainChannel) / var(--jf-palette-action-selectedOpacity)). */
+    --jf-palette-primary-hover: rgba(225, 29, 46, .20);
+
+    /* Secondary is Jellyfin's designated "focus / interactive" colour:
+       .inputLabelFocused/.selectLabelFocused/.textareaLabelFocused (:211),
+       .emby-input/.emby-textarea:focus border (:401),
+       .emby-select-withcolor:focus border !important (:425),
+       .emby-select-tv-withcolor:focus fill !important (:429),
+       .emby-checkbox:focus:not(:checked) outline (:446),
+       .emby-tab-button:hover (:494), .card:focus .cardBox border !important,
+       .paper-icon-button-light.show-focus:focus (:157).
+       §2.16 prescribes the literal #FFFFFF; the literal cannot invert, so on
+       html[data-theme="light"] every one of those affordances rendered white
+       on a #F7F7F7 page (1.09:1 measured on the focused login label).
+       --jflix-line-invert is defined for exactly this job (§2.1: "Focus-ring
+       outer, active field border") and is #FFFFFF dark / #0B0B0B light, so the
+       dark value is byte-identical to the spec's and light is finally legible.
+       -mainChannel must follow it — see the light block at the end of the file.
+       SPEC: change §2.16's `secondary-main ← #FFFFFF` to `← --jflix-line-invert`. */
+    --jf-palette-secondary-main: var(--jflix-line-invert);
+    --jf-palette-secondary-mainChannel: 255 255 255;
+    --jf-palette-secondary-contrastText: var(--jflix-surface-0);
+    --jf-palette-secondary-contrastTextChannel: 11 11 11;
+
+    /* App bar — scrolled bar + .skinHeader-withBackground. The transparent
+       state is `transparent` because the scrim is painted on a ::before, and
+       -gradient stays none because a background-image cannot transition.
+       -defaultBg alone is NOT enough: in dark mode MUI reads
+       --jf-palette-AppBar-darkBg, declared on [data-theme="dark"] as
+       `var(--jf-palette-background-paper, #202020)` — and the bridge has just
+       re-pointed background-paper at surface-3, so without the two lines below
+       the scrolled bar painted #232323 instead of #0B0B0B (measured live on
+       #/home after --scroll 700). :root beats [data-theme="dark"] on source
+       order (foundation G2), so no extra specificity is needed.
+       SPEC: add both rows to §2.16. */
+    --jf-palette-AppBar-defaultBg: var(--jflix-surface-0);
+    --jf-palette-AppBar-darkBg: var(--jflix-surface-0);
+    --jf-palette-AppBar-darkColor: var(--jflix-text-primary);
+    --jf-palette-AppBar-transparentBg: transparent;
+    --jf-palette-AppBar-gradient: none;
+
+    /* Text — -secondary is also the default html colour */
+    --jf-palette-text-primary: var(--jflix-text-primary);
+    --jf-palette-text-secondary: var(--jflix-text-secondary);
+
+    /* Dividers and row states — .listItem-border, .emby-collapsible-button,
+       .listItem:hover / :focus */
+    --jf-palette-divider: var(--jflix-line-hairline);
+    --jf-palette-action-hover: var(--jflix-overlay-hover);
+    --jf-palette-action-focus: var(--jflix-overlay-press);
+    /* MUI paints disabled MUI controls from this variable inside its own
+       emotion rule, which is <hash>.Mui-disabled at (0,2,0) — a bare
+       `.Mui-disabled{color:…}` in Custom CSS is (0,1,0) and loses (measured:
+       the disabled pagination buttons on #/movies reported the stock
+       rgba(255,255,255,.3)). Re-pointing the variable is cascade-proof because
+       MUI's own rule reads it. -disabledBackground is left at stock because §2
+       names no token for it. SPEC: add the row to §2.16. */
+    --jf-palette-action-disabled: var(--jflix-text-disabled);
+
+    /* Error — main is DELIBERATELY left at stock #C62828 (§0.3 #12): since the
+       primary button is white, the two reds never compete as "which do I press".
+       -light is the error *text* colour; the icon uses of -light
+       (.playstatebutton-icon-played, .ratingbutton-icon-withrating) are
+       re-pointed by selector in the card/details modules. */
+    --jf-palette-error-main: var(--jflix-danger);
+    --jf-palette-error-light: var(--jflix-danger-text);
+    --jf-palette-error-lightChannel: 255 107 107;
+    --jf-palette-error-contrastText: #FFFFFF;
+
+    /* Inputs — MUST be opaque: a translucent field over a backdrop is unreadable.
+       -borderColor is read by .emby-input/.emby-textarea/.emby-select-withcolor
+       but declared nowhere in the app — a free hook. */
+    --jf-palette-FilledInput-bg: var(--jflix-surface-4);
+    /* §2.1 designates --jflix-line-subtle "Field border at rest", so that is
+       what ships. UNRESOLVED SPEC CONFLICT, flagged for the forms module and
+       the spec owner rather than silently re-pointed here: rgba(255,255,255,
+       .16) over the surface-4 fill composites to rgb(77,77,77) — 2.33:1 against
+       the page and 1.67:1 against the fill — and the opaque fill itself is only
+       1.39:1 against the page, so neither delimits the control to §5.1's 3:1
+       for "UI component boundaries". §3.15 makes it worse by giving the field
+       `1px solid transparent` at REST and --jflix-line-subtle on HOVER, which
+       contradicts §2.1 outright. Whoever owns §3.15 must decide: raise
+       --jflix-line-subtle to >= rgba(255,255,255,.24) (3.03:1) and keep -strong
+       for hover, or point this hook at --jflix-line-strong (4.69:1 vs page,
+       3.37:1 vs fill). Do not leave the field with no legal boundary. */
+    --jf-palette-FilledInput-borderColor: var(--jflix-line-subtle);
+
+    /* Neutral filled buttons — .raised, .fab, .btnCancel, MUI inherit-contained */
+    --jf-palette-Button-inheritContainedBg: var(--jflix-surface-4);
+    --jf-palette-Button-inheritContainedHoverBg: var(--jflix-surface-5);
+
+    /* Snackbar / .toast. -bg follows surface-3, which is #FFFFFF on light, so
+       the §2.16 literal below MUST be mirrored in the light block or the toast
+       is white-on-white. See html[data-theme="light"] at the end of the file. */
+    --jf-palette-SnackbarContent-bg: var(--jflix-surface-3);
+    --jf-palette-SnackbarContent-color: rgba(255, 255, 255, .92);
+
+    /* Kills the bright blue info banner (.infoBanner) */
+    --jf-palette-Alert-infoFilledBg: #1F2A38;
+    --jf-palette-Alert-infoFilledColor: #CFE3FF;
+
+    /* Shape. --jf-card-borderRadius MUST be px: as an em it re-resolves against
+       each consuming element's own font-size and the tile, the padder and the
+       blurhash canvas silently disagree. Reaches .cardPadder, .cardContent,
+       .cardImageContainer, .blurhash-canvas, .itemDetailImage,
+       .cardOverlayContainer, .paperList, .visualCardBox. */
+    --jf-card-borderRadius: 8px;
+    --jf-shape-borderRadius: 4px;
+
+    /* MUI elevation plumbing. MUI writes --Paper-shadow/--Paper-overlay as
+       INLINE styles on every Paper, so .MuiPaper-root{--Paper-shadow:…} is
+       ignored — but the inline value is itself a var(), so redefining these
+       on :root does work (verified). --jf-overlays-* kill MUI's white
+       elevation wash; only the four shadow steps the spec names are remapped. */
+    --jf-overlays-1: none;
+    --jf-overlays-2: none;
+    --jf-overlays-3: none;
+    --jf-overlays-4: none;
+    --jf-overlays-5: none;
+    --jf-overlays-6: none;
+    --jf-overlays-7: none;
+    --jf-overlays-8: none;
+    --jf-overlays-9: none;
+    --jf-overlays-10: none;
+    --jf-overlays-11: none;
+    --jf-overlays-12: none;
+    --jf-overlays-13: none;
+    --jf-overlays-14: none;
+    --jf-overlays-15: none;
+    --jf-overlays-16: none;
+    --jf-overlays-17: none;
+    --jf-overlays-18: none;
+    --jf-overlays-19: none;
+    --jf-overlays-20: none;
+    --jf-overlays-21: none;
+    --jf-overlays-22: none;
+    --jf-overlays-23: none;
+    --jf-overlays-24: none;
+
+    /* DELIBERATE DEVIATION from §2.16's "map --jf-shadows-2 -> elev-2".
+       MUI's elevations 1 and 2 are its FLAT-control tier, not a floating one,
+       and §2.11 + the §7.1 gate both say "no shadow on any element at rest":
+         -1  header.MuiAppBar-root when scrolled, and every MuiPaper/MuiCard at
+             the default elevation — measured live: 3 dashboard panels carrying
+             MUI's stock three-layer Material shadow at rest.
+         -2  MuiButtonGroup-contained — measured live on #/movies with no
+             pointer or focus on it, casting 0 4px 12px rgba(0,0,0,.55).
+       Both are therefore `none`. The app bar keeps its §3.1 shadow because the
+       app swaps MuiPaper-elevation0 -> -elevation1 on the scroll trigger
+       (verified: elevation0/box-shadow:none at scrollTop 0, elevation1 after
+       --scroll 700), so it is a STATE, not a rest style.
+       HAND-OFF: the shell module owns
+       `header.MuiAppBar-root.MuiAppBar-colorDefault{box-shadow: var(--jflix-elev-1)}`
+       per §3.1's state table; the dashboard module keeps panels at elev-0 (§3.18).
+       SPEC: correct §2.16's -2 row and add a -1 row. */
+    --jf-shadows-1: none;
+    --jf-shadows-2: none;
+    --jf-shadows-8: var(--jflix-elev-2);    /* menus / popovers  */
+    --jf-shadows-16: var(--jflix-elev-4);   /* dialogs / drawer  */
+    --jf-shadows-24: var(--jflix-elev-4);   /* dialogs / drawer  */
+}
+
+/* ----------------------------------------------------------------------------
+ * LIST 1 — hard-coded literals the bridge does NOT reach. Each is owned by a
+ * module file; listed here so nobody assumes a token covers them:
+ *   #202020  .paperList · .visualCardBox · .collapseContent ·
+ *            .formDialogHeader/.formDialogFooter (not -clear) ·
+ *            .cardBox:not(.visualCardBox) .cardPadder · .cardPadder .cardImageIcon
+ *   rgb(51,136,204)  .mediaSourceIndicator
+ *   #00a4dc  — the full grep of _ref/jellyfin-web/src, with an owner each.
+ *            §2.16's second table lists only the first four rows; the rest are
+ *            added here and must be added there too (§7.1 gates on ZERO visible
+ *            #00a4dc hits, so an unowned one fails the build):
+ *     forms   .mdl-slider* (emby-slider.scss:8,61,81,101,182,275)
+ *     forms   .mdl-switch__track/__thumb/__focus-helper (emby-toggle.scss:45,79,108)
+ *     forms   .mdl-radio__focus-circle (emby-radio.scss:103) AND
+ *             .mdl-radio__outer-circle / __inner-circle (emby-radio.scss:72,91)
+ *             — radios appear on ordinary settings pages; §3.15 names only the
+ *             focus circle, so outer/inner currently have NO owner
+ *     listview .listItemImageButton:hover (listview.scss:158-178) and
+ *             .listItemIcon:not(.listItemIcon-transparent) (listview.scss:249)
+ *     dashboard dashboard.scss:123 (!important), metadataeditor.scss:49
+ *             (!important), plus progress::-moz-progress-bar /
+ *             ::-webkit-progress-value / progress[aria-valuenow]::before
+ *             (dashboard.scss:32,36,41) and .playbackProgress > div (:378)
+ *     library  .button-accent-flat (librarybrowser.scss:1379, !important)
+ *     player   .iconOsd (iconosd.scss:33)
+ *     dialogs  lyricseditor.scss:6, subtitleeditor.scss:6, bookPlayer/style.scss
+ *     global   .docspinner's four .mdl-spinner__layer-N (loading.scss:26-52)
+ *              — ALREADY handled in 10-global.css §8
+ *   rgba(255,255,255,.3/.4)  .mdl-slider-background-flex / -upper
+ *   #282828  .sliderBubble          #03a9f4  .filterButtonBubble (handled, §8)
+ *   #aaa     .searchfields-icon     #f2b01e  .starIcon (retarget to --jflix-warning)
+ *   theme literals  .defaultCardBackground1…5 · guide programme cells
+ *   MUI sx   .alphaPicker-fixed-right top:96px/144px
+ *   -48px    .layout-mobile .itemBackdrop margin-top
+ *   7.5%     [dir="ltr"|"rtl"] .padded-right-withalphapicker
+ *            (librarybrowser.scss:1365-1371, (0,2,0), inside
+ *            @media (min-height: 31.25em)). NOT a --jflix-gutter hook: the 7.5%
+ *            is A–Z rail CLEARANCE, not a page margin, so collapsing it to 4%
+ *            would put the last column under the rail. HAND-OFF: the
+ *            library/search module (§3.12) owns both dir variants and must
+ *            re-derive it as railWidth + --jflix-gutter once the rail is sized.
+ *            Legacy-only — added by apps/legacy/controllers/{list,movies,
+ *            shows,music}.js. SPEC: note it in §2.7's hook list.
+ *
+ * LIST 2 — slots the primary-main BRIDGE ITSELF turns accent-red that §2.3's
+ * exhaustive five-slot scope does NOT cover. These are not stock survivors,
+ * they are our own side-effect, and no module has been told about them.
+ * Every one measured live with these two files injected:
+ *   .emby-checkbox:checked + span + .checkboxOutline  (_theme.scss:434-441)
+ *       -> measured rgb(225,29,46) fill AND border on #/login ("Zapamiętaj
+ *          hasło", the first screen every user sees) and #/mypreferencesdisplay.
+ *          §3.15 and the §7.2 Preferences gate both demand a WHITE fill with a
+ *          --jflix-text-on-light glyph — "or 'checked' reads as 'error'".
+ *          OWNER: forms module, at (0,3,0), plus .checkboxIcon{color}.
+ *   .playedIndicator / .fullSyncIndicator  (_theme.scss:453-459)
+ *       -> red check on watched tiles; §2.3 assigns it --jflix-success.
+ *          OWNER: cards module.
+ *   .navMenuOption-selected  (_theme.scss:477-480, background !important)
+ *       -> full-bleed red bar in the legacy drawer; §1.1 forbids red "as a
+ *          background wash". §3.3 wants --jflix-overlay-selected + a 3px bar.
+ *          OWNER: drawer module (needs !important to win).
+ *   header .MuiAvatar-root
+ *       -> measured rgb(179,18,31) (primary-dark) on every page and profile —
+ *          the most prominent red in the UI. An avatar is not an accent slot.
+ *          OWNER: shell module.
+ *   .Mui-selected (dashboard drawer row)
+ *       -> rgba(primary-mainChannel / action-selectedOpacity) dark-red wash;
+ *          §3.3 wants --jflix-overlay-selected + a 3px bar. OWNER: shell module.
+ *   .emby-button.show-focus:focus (TV) and .paper-icon-button-light:hover
+ *       -> ALREADY handled by selector in 10-global.css §8.
+ *   .countIndicator, .mediaSourceIndicator, .itemProgressBarForeground,
+ *   .button-link, active tab
+ *       -> in scope / already re-pointed; listed so the set is complete.
+ *
+ * LIST 3 — left at stock because §2.16 does not map them; watch for survivors:
+ *   --jf-palette-secondary-light/-dark, -info-main, -warning-main,
+ *   -success-main, -starIcon-main, -action-disabledBackground,
+ *   --jf-shadows-3…7/9…15/17…23.
+ * -------------------------------------------------------------------------- */
+
+/* ============================================================================
+ * §2.17 Light theme (html[data-theme="light"], (0,1,1) — beats :root)
+ * Only the colour tokens change; geometry, motion and z-index are shared.
+ * The --jf-palette-* bridge follows automatically: it is declared on :root as
+ * var(--jflix-…) and both selectors resolve on the same element (html).
+ * The four remaining built-in themes (appletv, blueradiance, purplehaze, wmc)
+ * inherit the DARK column and all geometry. Documented behaviour, not a bug.
+ * ========================================================================== */
+
+html[data-theme="light"] {
+    --jflix-surface-0: #F7F7F7;
+    --jflix-surface-1: #F0F0F0;
+    --jflix-surface-2: #E8E8E8;
+    --jflix-surface-3: #FFFFFF;
+    --jflix-surface-4: #E2E2E2;
+    --jflix-surface-5: #D2D2D2;
+
+    --jflix-text-primary: #0B0B0B;
+    --jflix-text-secondary: rgba(11, 11, 11, .72);
+    /* §2.17 gives .58, which is 4.48:1 over light --jflix-surface-4 (#E2E2E2)
+       — two hundredths under §5.1's 4.5 for body text, and surface-4 is the
+       field fill, so this is exactly the helper-text pair §5.1 row 4 calls
+       "the tightest text pair" in its dark form. .60 is visually identical and
+       gives 4.78:1 on surface-4 / 5.12:1 on surface-0.
+       SPEC: change §2.17's value and add the light helper-text row to §5.1. */
+    --jflix-text-tertiary: rgba(11, 11, 11, .60);
+    --jflix-text-quaternary: rgba(11, 11, 11, .46);
+    --jflix-text-disabled: rgba(11, 11, 11, .38);
+    /* The primary button inverts to a dark fill with a white label so it stays
+       the highest-contrast control on the page (§2.17's light-specific rule).
+       Both halves flip: the LABEL here, the FILL in --jflix-btn-primary-bg-*
+       below. #FFFFFF on #0B0B0B = 18.37:1.
+       KNOWN §2.17 CONTRADICTION, not fixable in this file: the same paragraph
+       also puts --jflix-text-on-light labels on the light --jflix-overlay-glass
+       (rgba(255,255,255,.78)), which would be 1.02:1. The token cannot mean
+       both "label on a dark fill" and "ink on a light glass". HAND-OFF: the
+       details/hero module (§3.9) must NOT use --jflix-text-on-light over glass;
+       until §2.17 is corrected, use --jflix-text-primary there (#0B0B0B on
+       light glass, #FFFFFF on dark glass — correct in both themes). */
+    --jflix-text-on-light: #FFFFFF;
+    --jflix-btn-primary-bg: #0B0B0B;
+    --jflix-btn-primary-bg-hover: #2B2B2B;
+    --jflix-btn-primary-bg-active: #3A3A3A;
+    --jflix-btn-primary-bg-disabled: rgba(11, 11, 11, .28);
+
+    --jflix-line-hairline: rgba(0, 0, 0, .10);
+    --jflix-line-subtle: rgba(0, 0, 0, .20);
+    --jflix-line-strong: rgba(0, 0, 0, .42);
+    --jflix-line-invert: #0B0B0B;
+
+    --jflix-overlay-hover: rgba(0, 0, 0, .06);
+    --jflix-overlay-press: rgba(0, 0, 0, .12);
+    --jflix-overlay-selected: rgba(0, 0, 0, .10);
+    /* Glass sits on artwork, so it inverts to white. §2.17 names the base but
+       not its hover, which left the hover at the DARK rgba(109,109,110,.45) —
+       a secondary-over-artwork button changed hue from white to grey mid-
+       interaction. Mirrors the dark column's delta exactly (-0.25 alpha, i.e.
+       more of the artwork shows through on hover, which is the reference's own
+       behaviour). SPEC: add the row to §2.17. */
+    --jflix-overlay-glass: rgba(255, 255, 255, .78);
+    --jflix-overlay-glass-hover: rgba(255, 255, 255, .53);
+
+    --jflix-accent: #C2101F;            /* 5.8:1 on light surface-0 — legal as text here */
+    /* §2.17 lists only --jflix-accent, so hover/active/glow kept their DARK
+       values: the hover was LIGHTER than the light accent (wrong direction of
+       travel and a different hue) and the glow still carried the dark accent's
+       RGB. Derived from #C2101F by the same steps the dark column uses.
+       White on #A60D1A = 7.79:1. SPEC: add the three rows to §2.17. */
+    --jflix-accent-hover: #A60D1A;
+    --jflix-accent-active: #8A0A15;
+    --jflix-accent-glow: rgba(194, 16, 31, .30);
+
+    /* §2.17 lists neither, so both kept their dark values and sat on a
+       near-white page at 1.82:1 and 1.78:1 — §5.1 row 13 wants 3:1 for the
+       watched-check icon, and the star rating is one of the most visible
+       tokens in the product. #1E8E3E = 3.93:1 and #9A6700 = 4.54:1 on light
+       --jflix-surface-0. SPEC: add both rows to §2.17. */
+    --jflix-success: #1E8E3E;
+    --jflix-warning: #9A6700;
+
+    /* §2.17 does not list it either, so the track stayed at the dark literal
+       #141414 — a near-black bar across a light card, and the light accent on
+       it is 2.97:1, under §5.1 row 10's LOCKED 3:1. §2.3 defines the dark value
+       as "= --jflix-surface-1", so the light value is the same token: #F0F0F0,
+       which gives 5.44:1 and stays opaque as §2.3 demands.
+       SPEC: add the row to §2.17. */
+    --jflix-progress-track: var(--jflix-surface-1);
+
+    --jflix-danger-text: #B3121F;
+    --jflix-info: #0B5FBF;
+
+    --jflix-focus-ring: 0 0 0 2px #FFFFFF, 0 0 0 4px #0B0B0B;
+    /* MUST be inverted too. html.layout-tv (0,1,1) is declared AFTER
+       html[data-theme="light"] (0,1,1) and re-points --jflix-focus-ring at
+       --jflix-focus-ring-tv, so on a light TV the TV token is the one that
+       ships — and its :root value is a #F7F7F7 contour plus a #FFFFFF ring on
+       a #F7F7F7 page (1.04:1). A D-pad user would have no focus affordance
+       anywhere (§4.5: "a TV user with no focus ring cannot navigate at all";
+       §5.1 row 15 wants >= 3:1). Mirrors the inversion above.
+       --jflix-elev-tv is deliberately NOT inverted: its first layer is
+       var(--jflix-surface-0) by design — a page-coloured GAP between the
+       element and the blur, not a visible contour — and it follows the theme
+       already. SPEC: add the --jflix-focus-ring-tv row to §2.17. */
+    --jflix-focus-ring-tv: 0 0 0 3px #FFFFFF, 0 0 0 7px #0B0B0B;
+
+    /* Same geometry, alpha halved */
+    --jflix-elev-1: 0 1px 2px rgba(0, 0, 0, .30);
+    --jflix-elev-2: 0 4px 12px rgba(0, 0, 0, .22);
+    --jflix-elev-3: 0 10px 28px rgba(0, 0, 0, .26);
+    --jflix-elev-4: 0 18px 48px rgba(0, 0, 0, .30);
+
+    /* --jflix-scrim-* are deliberately UNCHANGED: artwork is still dark-cropped
+       and the text over it is still white. */
+}
+
+/* Bridge follow-ups for light. The -main/-light/-dark variables themselves are
+   declared on :root as var(--jflix-…) and re-resolve on their own, but the
+   "Channel" triplets are literal `R G B` and must be restated by hand — see
+   foundation.md B4: "If you change a -main you must change its -mainChannel
+   too". The literal bridge values (not var()) must be restated here too. */
+html[data-theme="light"] {
+    --jf-palette-primary-mainChannel: 194 16 31;    /* --jflix-accent        */
+    --jf-palette-primary-lightChannel: 166 13 26;   /* --jflix-accent-hover  */
+    --jf-palette-primary-darkChannel: 138 10 21;    /* --jflix-accent-active */
+    --jf-palette-primary-hover: rgba(194, 16, 31, .20);
+    --jf-palette-background-defaultChannel: 247 247 247;
+    --jf-palette-background-paperChannel: 255 255 255;
+    /* secondary-main is var(--jflix-line-invert) = #0B0B0B on light. */
+    --jf-palette-secondary-mainChannel: 11 11 11;
+    --jf-palette-secondary-contrastTextChannel: 247 247 247;
+    --jf-palette-error-lightChannel: 179 18 31;     /* --jflix-danger-text   */
+    /* -bg follows surface-3 (#FFFFFF on light) but §2.16's -color is the
+       literal rgba(255,255,255,.92), so the toast was invisible (1.00:1) on
+       every light-theme page. Mirrors the dark alpha exactly.
+       SPEC: add the row to §2.17. */
+    --jf-palette-SnackbarContent-color: rgba(11, 11, 11, .92);
+}
+
+/* ============================================================================
+ * §2.18 TV (html.layout-tv, (0,1,1))
+ * Root font-size is already 125% (20px) on TV, but the JellyFlix scale is in px,
+ * so every size is re-declared explicitly.
+ * ========================================================================== */
+
+html.layout-tv {
+    --jflix-type-row: 700 28px/1.3 var(--jflix-font);
+    --jflix-type-h1: 700 48px/1.1 var(--jflix-font);
+    --jflix-type-h2: 700 32px/1.2 var(--jflix-font);
+    --jflix-type-body-lg: 400 22px/1.5 var(--jflix-font);
+    --jflix-type-body: 400 20px/1.5 var(--jflix-font);
+    --jflix-type-body-sm: 400 18px/1.45 var(--jflix-font);
+    --jflix-type-button: 600 20px/1 var(--jflix-font);
+    --jflix-type-row-block: 36px;
+
+    --jflix-gutter: 5%;                 /* overscan-safe */
+    --jflix-row-gap: 56px;
+    --jflix-tile-gap: 12px;
+    --jflix-row-title-gap: 16px;
+    --jflix-section-gap: 48px;
+    --jflix-field-gap: 20px;
+
+    --jflix-control-h: 56px;
+    --jflix-list-row-h: 72px;
+    --jflix-table-cell-pad: 16px 20px;
+    --jflix-icon-md: 28px;
+    --jflix-icon-lg: 32px;
+
+    --jflix-tiles: 6;
+    --jflix-tiles-wide: 4;
+
+    /* Stock .card.show-animation:focus scale(1.07) is left untouched — §4.5
+       makes it THE TV card motion, so the JellyFlix zoom is switched off in
+       grids as well as rows. §2.18's code block and §2.15's tv column mention
+       only -row; without -grid a library grid would still apply 1.06 on focus
+       and compound with stock's 1.07. SPEC: add -grid to §2.18's code block. */
+    --jflix-zoom-row: 1;
+    --jflix-zoom-grid: 1;
+
+    /* backdrop-filter is forbidden on TV (frame-rate killer, and stock already
+       ships .skinHeader.semiTransparent{backdrop-filter:none!important}). */
+    --jflix-blur: none;
+    --jflix-focus-ring: var(--jflix-focus-ring-tv);
+}
+
+/* KNOWN §2.18 GAP — reported, deliberately NOT patched here.
+   §2.18's preamble says "every size must be re-declared explicitly", but its
+   code block declares only the seven type tokens transcribed above. These keep
+   their desktop px values on a 10-foot screen and the spec supplies no number
+   for any of them:
+     --jflix-type-display 56 · --jflix-type-h3 17 · --jflix-type-label 12 ·
+     --jflix-type-micro 11 · --jflix-type-button-lg 16 ·
+     --jflix-control-h-lg 48 · --jflix-control-h-sm 32 ·
+     --jflix-control-h-dense 36 · --jflix-icon-sm 16 · --jflix-icon-xl 28 ·
+     --jflix-touch-min 44
+   §5.3 sets a 13px body floor and reserves 11px micro for ASCII-ish tokens, so
+   12px form labels and 11px quality chips at 3m are below even that. Inventing
+   TV numbers here would be spec authorship ("where it gives a number, that
+   number ships" — it gives none), so §2.18's code block must be completed
+   FIRST and then transcribed. The one place the gap actually bites today —
+   --jflix-control-h-dense on a TV dashboard — is closed by the explicit
+   html.layout-tv re-assert at the end of this file, which sets --jflix-control-h
+   directly instead of going through -dense. */
+
+/* ============================================================================
+ * §2.15 Compact density — MANDATORY on dashboard, settings, user management,
+ * logs and metadata editors. Implemented as a selector, not a real switch.
+ * Declared on the page/body element so everything inside (including MUI
+ * portals, which are children of <body>) inherits the compact column.
+ * The component rules that consume these live in the dashboard module.
+ * ========================================================================== */
+
+body.dashboardDocument,
+#dashboardPage,
+.type-interior,
+#myPreferencesMenuPage,
+#metadataEditorPage,
+.metadataEditorPage {
+    --jflix-density: compact;
+    --jflix-control-h: var(--jflix-control-h-dense);
+    --jflix-list-row-h: 40px;
+    --jflix-field-gap: 8px;
+    --jflix-type-body: 400 13px/1.5 var(--jflix-font);
+    --jflix-gutter: clamp(16px, 2vw, 32px);
+    --jflix-table-cell-pad: 6px 12px;
+    /* A zooming settings tile reads as a bug. */
+    --jflix-zoom-row: 1;
+    --jflix-zoom-grid: 1;
+}
+
+/* The compact block above is declared on <body>/<page>, i.e. DESCENDANTS of the
+ * <html> that carries the layout-tv and pointer:coarse columns. Custom-property
+ * inheritance beats specificity across elements, so those declarations shadow
+ * html.layout-tv and @media (pointer:coarse){:root} no matter how specific the
+ * ancestor rule is. Measured on the tv profile at #/dashboard: :root reported
+ * --jflix-control-h:56px / --jflix-gutter:5%, while .page.type-interior and the
+ * header both reported 36px and clamp(16px,2vw,32px) — a 32px gutter puts
+ * dashboard content inside the 5% overscan band §2.18 reserves, list rows drop
+ * to 40px against §5.2's 48px TV minimum, and body text drops to 13px against
+ * §2.18's 20px. On a touch tablet the same path gives 36px controls against
+ * §5.2's 44x44 floor. Both columns are therefore re-asserted on the same
+ * elements. Zoom stays 1 in both cases: neither rule re-declares it, so the
+ * compact value is inherited unchanged.
+ * SPEC: §2.15 needs one sentence — "compact density never shrinks a control
+ * below --jflix-touch-min on pointer:coarse, and never overrides the TV column". */
+
+@media (pointer: coarse) {
+    body.dashboardDocument,
+    #dashboardPage,
+    .type-interior,
+    #myPreferencesMenuPage,
+    #metadataEditorPage,
+    .metadataEditorPage {
+        --jflix-control-h: var(--jflix-touch-min);
+    }
+}
+
+/* (0,2,1) — also beats the pointer:coarse block above on a TV that reports
+   coarse, which is the right precedence: 56px clears both floors. */
+html.layout-tv body.dashboardDocument,
+html.layout-tv #dashboardPage,
+html.layout-tv .type-interior,
+html.layout-tv #myPreferencesMenuPage,
+html.layout-tv #metadataEditorPage,
+html.layout-tv .metadataEditorPage {
+    --jflix-control-h: 56px;
+    --jflix-list-row-h: 72px;
+    --jflix-field-gap: 20px;
+    --jflix-type-body: 400 20px/1.5 var(--jflix-font);
+    --jflix-gutter: 5%;
+    --jflix-table-cell-pad: 16px 20px;
+}
+
+/* ============================================================================
+ * §4.4 / §5.3 preference-media token columns
+ * These are pure :root token data, which is why they live in the token file
+ * next to the light and TV columns. §4.4 is explicit that custom properties
+ * must be redeclared on a SELECTOR, not in a bare @media block.
+ *
+ * Only the tokens are here. The accompanying RULES are owned by the last
+ * module in §0.2's file order and are NOT in this file:
+ *   - `*{animation-duration:.01ms!important; transition-duration:.01ms!important}`
+ *   - §4.4's replacement hover affordance when scale is off
+ *     (outline 2px rgba(255,255,255,.9) inset + filter: brightness(1.12))
+ *   - killing backdrop-filter and raising scrim stops for reduced transparency
+ *   - the whole `forced-colors: active` block (rule work, not tokens)
+ * §7.1 gates on all four being present and verified.
+ *
+ * Light-theme interaction, by design: html[data-theme="light"] is (0,1,1) and
+ * beats :root (0,1,0), so a light-theme user keeps the light values rather than
+ * these dark ones. That is the safe outcome — the light column already clears
+ * 4.5:1 — but §5.3 gives no light contrast/transparency numbers, so the light
+ * equivalents are a SPEC GAP, not an omission here.
+ * ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+    :root {
+        --jflix-zoom-row: 1;
+        --jflix-zoom-grid: 1;
+        --jflix-dur-base: 1ms;
+        --jflix-dur-dialog: 1ms;
+        --jflix-dur-hero: 1ms;
+        --jflix-dur-nav: 1ms;
+        --jflix-delay-hover-in: 0ms;
+        --jflix-dur-fast: 100ms;
+    }
+}
+
+/* Scrim stops are +0.12 alpha (capped at 1) and the focus ring's white band
+   goes 2px -> 3px, per §5.3. */
+@media (prefers-contrast: more) {
+    :root {
+        --jflix-text-secondary: rgba(255, 255, 255, .88);
+        --jflix-text-tertiary: rgba(255, 255, 255, .72);
+        --jflix-line-hairline: rgba(255, 255, 255, .20);
+        --jflix-focus-ring: 0 0 0 2px var(--jflix-surface-0), 0 0 0 5px #FFFFFF;
+        --jflix-scrim-top: linear-gradient(180deg, rgba(0, 0, 0, .90) 0%, rgba(0, 0, 0, .54) 46%, rgba(0, 0, 0, 0) 100%);
+        --jflix-scrim-bottom: linear-gradient(0deg, #0B0B0B 0%, rgba(11, 11, 11, 1) 14%, rgba(11, 11, 11, .62) 36%, rgba(11, 11, 11, 0) 66%);
+        --jflix-scrim-left: linear-gradient(90deg, rgba(11, 11, 11, 1) 0%, rgba(11, 11, 11, .86) 26%, rgba(11, 11, 11, .38) 50%, rgba(11, 11, 11, 0) 72%);
+        --jflix-scrim-tile-b: linear-gradient(0deg, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, .70) 38%, rgba(0, 0, 0, 0) 78%);
+        --jflix-scrim-osd-b: linear-gradient(0deg, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, .57) 45%, rgba(0, 0, 0, 0) 100%);
+    }
+}
+
+/* §5.3 names only --jflix-overlay-glass; -glass-hover must follow it or the
+   button changes hue mid-interaction, and -overlay-icon is the same "over
+   artwork" category, so both take the same substitution. Scrim stops are +0.10
+   alpha (capped at 1), per §5.3. */
+@media (prefers-reduced-transparency: reduce) {
+    :root {
+        --jflix-overlay-glass: var(--jflix-surface-4);
+        --jflix-overlay-glass-hover: var(--jflix-surface-5);
+        --jflix-overlay-icon: var(--jflix-surface-4);
+        --jflix-blur: none;
+        --jflix-scrim-top: linear-gradient(180deg, rgba(0, 0, 0, .88) 0%, rgba(0, 0, 0, .52) 46%, rgba(0, 0, 0, 0) 100%);
+        --jflix-scrim-bottom: linear-gradient(0deg, #0B0B0B 0%, rgba(11, 11, 11, .98) 14%, rgba(11, 11, 11, .60) 36%, rgba(11, 11, 11, 0) 66%);
+        --jflix-scrim-left: linear-gradient(90deg, rgba(11, 11, 11, 1) 0%, rgba(11, 11, 11, .84) 26%, rgba(11, 11, 11, .36) 50%, rgba(11, 11, 11, 0) 72%);
+        --jflix-scrim-tile-b: linear-gradient(0deg, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, .68) 38%, rgba(0, 0, 0, 0) 78%);
+        --jflix-scrim-osd-b: linear-gradient(0deg, rgba(0, 0, 0, .98) 0%, rgba(0, 0, 0, .55) 45%, rgba(0, 0, 0, 0) 100%);
+        --jflix-scrim-modal: rgba(0, 0, 0, .82);
+        --jflix-scrim-tile: rgba(0, 0, 0, .65);
+    }
+}

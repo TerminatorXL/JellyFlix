@@ -1,0 +1,638 @@
+/* ============================================================================
+ * JellyFlix — 25-shell-legacy.css
+ * The LEGACY (and TV-shared) app shell: `.skinHeader` and its state modifiers,
+ * the header icon rail, the wordmark / page-title slot, the `.headerTabs`
+ * strip, and the `.mainDrawer` nav drawer + its scrim.
+ * Spec: §3.2 (legacy app bar), §3.3 (drawer), §3.1's tab/icon/wordmark
+ * treatment, §2.7 gutter, §2.18 TV.
+ *
+ * ----------------------------------------------------------------------------
+ * SCOPE GUARD — why every rule below starts with .skinHeader / .mainDrawer /
+ * .tmla-mask, and why that is enough
+ * ----------------------------------------------------------------------------
+ * The legacy shell markup is PRESENT IN THE MODERN DOM: `AppHeader` is mounted
+ * for every layout and, in modern + dashboard routes, wrapped in a
+ * `<div style="display:none">` (AppHeader.tsx:20, RootAppRouter.tsx:59).
+ * `.skinHeader`, `.mainDrawer` and their whole subtrees therefore never paint
+ * in the modern layout, which makes those two roots a complete guard — no
+ * `:has()` legacy anchor is needed (and a `:has()` guard could not be
+ * load-bearing anyway, house rule 2).
+ *
+ * The shared classes that DO appear outside this shell, and must not be styled
+ * bare:
+ *   .emby-tab-button / .emby-tabs-slider — also the Live TV guide's date tabs
+ *       (components/guide/guide.js:865), which are NOT in the header.
+ *   .paper-icon-button-light / .material-icons — used app-wide; §3.16 forbids
+ *       restyling them globally.
+ *   .pageTitleWithDefaultLogo — §3.1 gives the MODERN app bar the same class
+ *       for its wordmark slot. Ours is scoped to `.skinHeader`; the modern
+ *       module owns the MUI side. Both should render the same wordmark.
+ *   .libraryPage / .page / .mainAnimatedPage — shared with modern, where
+ *       apps/modern/AppOverrides.scss forces padding-top:0!important. This file
+ *       does NOT touch page padding at all (see "PAGE FRAME" at the end).
+ *
+ * ----------------------------------------------------------------------------
+ * GEOMETRY CONTRACT (all three numbers measured live, stock, before this file)
+ * ----------------------------------------------------------------------------
+ *   legacy-desktop 1920  .skinHeader 64.4  = .headerTop 65.2 + tabs 63.2 − 4.3em
+ *   legacy-mobile   390  .skinHeader 106.8 = .headerTop 55.7 + tabs 51.1 (2 rows)
+ *   tv             1920  .skinHeader 86.6, position:relative (in flow)
+ *
+ * Two locals drive the new geometry so the two stacking modes stay consistent:
+ *   --jflix-legacy-bar-h   the icon row   (= --jflix-bar-h: 64/56/48, TV 88)
+ *   --jflix-legacy-tabs-h  the tab row    (= --jflix-bar-h-2: 48; = bar-h ≥100em)
+ * Result: ≥100em the tabs overlay the icon row (stock's `margin-top:-4.3em`
+ * trick, re-derived from the token) and the header is exactly bar-h; below
+ * 100em the two rows stack to bar-h + 48, which still fits inside stock's
+ * `.libraryPage{padding-top:7.5em!important}` (111.6px @14.88px root) — this is
+ * why the tab row is --jflix-bar-h-2 and not --jflix-bar-h.
+ * ========================================================================== */
+
+/* ----------------------------------------------------------------------------
+ * 1. Local geometry variables
+ * Declared on .skinHeader so they inherit to .headerTop / .headerTabs /
+ * .emby-tab-button without leaking to the page.
+ * -------------------------------------------------------------------------- */
+
+.skinHeader {
+    --jflix-legacy-bar-h: var(--jflix-bar-h);
+    --jflix-legacy-tabs-h: var(--jflix-bar-h-2);
+    --jflix-hdr-btn: 40px;                      /* §3.1 icon button 40×40      */
+    --jflix-hdr-scrim-h: 140px;                 /* §2.6 top scrim, desktop     */
+}
+
+/* §2.6 geometry: the top scrim is 96px on mobile. Keyed on the LAYOUT CLASS,
+   not on width, because that is what the mobile shell is (house rule 10). */
+html.layout-mobile .skinHeader {
+    --jflix-hdr-scrim-h: 96px;
+}
+
+/* §5.2: 44px minimum touch target. Same specificity as the base rule above,
+   later in the file, so it wins wherever it matches. */
+@media (pointer: coarse) {
+    .skinHeader {
+        --jflix-hdr-btn: var(--jflix-touch-min);
+    }
+}
+
+/* ≥1600px the tab strip overlays the icon row, so it must be exactly as tall
+   as that row or the labels sit below the icons' optical centre.
+   Media queries carry no specificity — this must come after §1's declaration. */
+@media (min-width: 100em) {
+    .skinHeader {
+        --jflix-legacy-tabs-h: var(--jflix-legacy-bar-h);
+    }
+}
+
+/* ----------------------------------------------------------------------------
+ * 2. The header box
+ *
+ * CONTAINMENT (the one stock rule that blocks the whole §3.2 recipe).
+ * `librarybrowser.scss:221` ships `.skinHeader{contain: layout style paint}`
+ * (computed `contain: content`). `paint` CLIPS every descendant to the header's
+ * border box, so the §3.2 top scrim — which must hang 140px down over the
+ * details backdrop — would be guillotined at 64px, and the TV focus scale
+ * (`.emby-tab-button.show-focus:focus{transform:scale(1.3)!important}`) would
+ * be clipped too. Dropping `paint` and keeping `layout style` is the minimum
+ * change: `contain: layout` still makes the header a stacking context AND a
+ * containing block for positioned descendants, so nothing about the z-index 999
+ * layer or the fixed positioning changes. Never `contain: none` (§3.5's
+ * equivalent unlock on `.card` makes the same trade). (0,1,0) ties stock and
+ * wins on source order — no !important.
+ *
+ * TRANSITION. Stock is `transition: background ease-in-out .5s`. §4.2 wants the
+ * app-bar cross-fade at --jflix-dur-nav with --jflix-ease-exit, and house rule 7
+ * forbids an unnamed property, so the property is named explicitly.
+ * -------------------------------------------------------------------------- */
+
+.skinHeader {
+    contain: layout style;
+    transition-property: background-color;
+    transition-duration: var(--jflix-dur-nav);
+    transition-timing-function: var(--jflix-ease-exit);
+}
+
+/* --- Solid state -----------------------------------------------------------
+ * `.skinHeader-withBackground` is added unconditionally by libraryMenu.js:57,
+ * so on legacy this is the REST appearance of the bar, not a scroll state.
+ * The bridge already points --jf-palette-AppBar-defaultBg at --jflix-surface-0;
+ * this repeats it by selector so the bar is still correct if a later theme
+ * re-declares the palette variable, and kills the gradient slot.
+ *
+ * DELIBERATE DEVIATION from §3.2, which asks for `--jflix-elev-1` here.
+ * On legacy there is no scroll trigger on desktop or TV (the transparent/solid
+ * swap is ROUTE-driven — `setTransparentMenu` — see the shell-legacy DOM map),
+ * so a shadow on this class would be a shadow AT REST, which §7.1 gates
+ * against. The shadow is therefore attached to the only scroll state the legacy
+ * header actually exposes: Headroom's `headroom--not-top`, which is initialised
+ * only when `layoutManager.mobile` (libraryMenu.js:251-253). That matches §3.1's
+ * modern bar, where the shadow is likewise a STATE (elevation0 → elevation1 on
+ * the scroll trigger) and not a rest style.
+ * SPEC: §3.2 should say "--jflix-elev-1 when scrolled, where the layout
+ * provides a scroll state", exactly as §3.1 does.
+ * -------------------------------------------------------------------------- */
+
+.skinHeader-withBackground {
+    background-color: var(--jflix-surface-0);
+    background-image: none;
+    box-shadow: none;
+}
+
+.skinHeader.skinHeader-withBackground.headroom--not-top {
+    box-shadow: var(--jflix-elev-1);
+}
+
+/* --- Transparent state (details, login, queue) -----------------------------
+ * The bridge sets --jf-palette-AppBar-transparentBg to `transparent`, so the
+ * stock rgba(0,0,0,.4) flat dim is gone and the art shows through; §1.2's
+ * art → scrim → text law then requires a graded scrim, which is painted on a
+ * pseudo-element (a background-image cannot transition, §3.1).
+ * `z-index:-1` paints it above the header's own background and below the
+ * toolbar; `pointer-events:none` keeps the back/menu buttons clickable.
+ * Stock's `backdrop-filter:none !important` is left exactly as it is (§3.2).
+ * -------------------------------------------------------------------------- */
+
+.skinHeader.semiTransparent {
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+}
+
+.skinHeader.semiTransparent::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--jflix-hdr-scrim-h);
+    z-index: -1;
+    pointer-events: none;
+    background-image: var(--jflix-scrim-top);
+}
+
+/* ----------------------------------------------------------------------------
+ * 3. The icon row — height and the one alignment line (§1.3, §2.7, §7.2)
+ * Stock `.headerTop{padding:.54em 0}` / `.8em` ≥100em gives the bar its height
+ * through padding, which cannot be pinned to a token. Zeroing the block padding
+ * and setting `min-height` instead makes the row exactly --jflix-legacy-bar-h,
+ * and `.headerTop` already carries `.align-items-center`, so nothing re-centres.
+ *
+ * The inline padding is the gutter, written the same way 10-global.css writes
+ * `.padded-left`: env() inside max() so a notch inset still wins on a phone.
+ * `.headerTop` is a direct child of the full-width `.skinHeader`, so the 4%
+ * resolves against the viewport and lands on the same line as the row titles
+ * and the first tile (the drift 10-global.css §7 warns about does not apply).
+ * Both `.headerTop{padding:.8em}` (≥100em) and `.withSectionTabs .headerTop`
+ * (<100em) are (0,1,0)/(0,2,0); this is (0,2,0) and later, so it beats both.
+ * -------------------------------------------------------------------------- */
+
+.skinHeader .headerTop {
+    min-height: var(--jflix-legacy-bar-h);
+    padding-top: 0;
+    padding-bottom: 0;
+    padding-left: max(var(--jflix-gutter), env(safe-area-inset-left));
+    padding-right: max(var(--jflix-gutter), env(safe-area-inset-right));
+}
+
+/* ----------------------------------------------------------------------------
+ * 4. Header icon buttons (§3.1's icon-button row, applied to the legacy rail)
+ * Stock `.paper-icon-button-light` sizes itself from `padding:.556em` and an
+ * `1.67em` glyph, which makes every button re-size with the root font (41.5px
+ * desktop, 40 mobile, 55 TV). Pinning width/height to a token gives one 40px
+ * (44 touch / 56 TV) target everywhere, and the glyph follows --jflix-icon-md,
+ * which the TV column already re-declares as 28px.
+ *
+ * `transition: .2s` in emby-button.scss:118 is an unnamed shorthand — i.e.
+ * `transition-property: all`, which house rule 7 forbids and which would now
+ * animate the width/height above. Named here, scoped to the header only.
+ * Stock's `.show-focus:focus{transform:scale(1.3)}` and 10-global.css's focus
+ * ring are untouched; hover/active colours stay 10-global.css's (§3.16 keeps
+ * `.paper-icon-button-light` out of this file's reach except inside .skinHeader).
+ * -------------------------------------------------------------------------- */
+
+.skinHeader .headerButton.paper-icon-button-light {
+    width: var(--jflix-hdr-btn);
+    height: var(--jflix-hdr-btn);
+    padding: 0;
+    color: var(--jflix-text-secondary);
+    border-radius: var(--jflix-radius-circle);
+    transition-property: background-color, color;
+    transition-duration: var(--jflix-dur-fast);
+    transition-timing-function: var(--jflix-ease-exit);
+}
+
+.skinHeader .headerButton > .material-icons {
+    font-size: var(--jflix-icon-md);
+}
+
+/* Stock `margin: 0 .29em` on every icon button puts a 4.3px sliver between the
+   leading button and the gutter line. Collapsing the outer margin makes the
+   left rail start, and the right rail end, exactly on the gutter. */
+.skinHeader .headerLeft .headerButton {
+    margin-left: 0;
+    margin-right: var(--jflix-space-1);
+}
+
+.skinHeader .headerRight .headerButton {
+    margin-left: var(--jflix-space-1);
+    margin-right: 0;
+}
+
+/* Avatar — §3.1 wants a rounded square, not the stock 100em circle, and the
+   stock `.paper-icon-button-light > div{transform:scale(1.8)}` blows the
+   background image up instead of letting it fill the button.
+   NOT VERIFIED LIVE: no test user on the fixture server has an avatar image,
+   so this rule was never exercised by a screenshot. It is deliberately
+   conservative (no size change, no layout effect) for that reason. */
+.skinHeader .headerUserButtonRound > div {
+    transform: none;
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    margin: 0;
+    border-radius: var(--jflix-radius-sm);
+    background-size: cover;
+}
+
+/* The remote-player name and the TV clock. `.currentTimeText` carries `.hide`
+   off TV — no display is written here, so the JS toggle keeps working. */
+.skinHeader .headerSelectedPlayer {
+    font: var(--jflix-type-body-sm);
+    color: var(--jflix-text-tertiary);
+}
+
+.skinHeader .currentTimeText {
+    font-family: var(--jflix-font-num);
+    font-variant-numeric: tabular-nums;
+    font-size: 16px;
+    color: var(--jflix-text-secondary);
+    padding-left: var(--jflix-space-3);
+    padding-right: var(--jflix-space-3);
+}
+
+/* ----------------------------------------------------------------------------
+ * 5. Wordmark slot (§2.3's first accent slot, §3.1's wordmark row)
+ *
+ * `.pageTitleWithDefaultLogo` is an empty <h3> whose entire content is a
+ * background-image (the blue/purple Jellyfin banner; `icon-transparent.png` on
+ * TV). §2.3 lists "wordmark slot" as one of the five places the accent is
+ * allowed, and §3.1 specifies the slot as 26px, weight 800, tracking −0.03em in
+ * --jflix-accent — i.e. a TEXT wordmark. The banner is therefore replaced.
+ *
+ * Only the DEFAULT logo is replaced. A server that has uploaded its own branding
+ * gets `.pageTitleWithLogo` WITHOUT `-WithDefaultLogo`, and that image is left
+ * completely alone.
+ *
+ * CONTRAST. §5.1 forbids the accent as text, but the same table exempts large
+ * text (≥18.66px bold ⇒ 3:1): 22px/800 on --jflix-surface-0 measures 4.14:1,
+ * and WCAG 1.4.3 exempts logotypes outright. The wordmark only ever renders on
+ * a solid `-withBackground` header (home); on a `semiTransparent` header the
+ * page title is a text title, not the logo.
+ *
+ * `content` is untranslatable, so the string is exposed as a variable with the
+ * product name as its fallback — the single re-brand point (§2.14's mechanism).
+ * SPEC: add --jflix-label-wordmark to §2.14 and to 00-tokens.css so the modern
+ * app bar and this one cannot drift apart.
+ *
+ * The 0 0 24px glow is --jflix-accent-glow's documented purpose in §2.3
+ * ("glow behind the wordmark slot"). It is the one intentional exception to
+ * §7.1's no-shadow-at-rest gate, and it is a glow on a logotype, not elevation.
+ * -------------------------------------------------------------------------- */
+
+.skinHeader .pageTitleWithDefaultLogo {
+    background-image: none;
+    width: auto;
+    height: 26px;
+}
+
+.skinHeader .pageTitleWithDefaultLogo::after {
+    content: var(--jflix-label-wordmark, "JELLYFIN");
+    font: 800 22px/26px var(--jflix-font);
+    letter-spacing: -0.03em;
+    color: var(--jflix-accent);
+    text-shadow: 0 0 24px var(--jflix-accent-glow);
+}
+
+/* §1.3's single alignment line: the wordmark is pulled in front of the
+   back/home/drawer rail so it starts exactly on --jflix-gutter, level with
+   every row title and the first tile of every row. Scoped to the LOGO variants
+   only — a text page title ("Filmy") keeps its natural place after the back
+   button, where a back arrow belongs. `margin-right: 32px` is §3.1's value.
+   Stock's margin is `[dir="ltr"] .pageTitle{margin:0 0 0 .5em}` (0,2,0); this
+   is (0,3,0). */
+.skinHeader .headerLeft .pageTitleWithLogo {
+    order: -1;
+    margin-left: 0;
+    margin-right: var(--jflix-space-7);
+}
+
+[dir="rtl"] .skinHeader .headerLeft .pageTitleWithLogo {
+    margin-left: var(--jflix-space-7);
+    margin-right: 0;
+}
+
+/* Text page title (library name, "Wyniki wyszukiwania", …). `h3` in
+   10-global.css is --jflix-type-h3 (17px); the header title is the page's
+   primary label and gets the row-title weight instead. Explicit px rather than
+   `font: var(--jflix-type-row)` because that token steps 20→22→24 with width
+   and would overflow the stock `.pageTitle{height:1.7em}` box.
+   `min-width:0` + `overflow:hidden`: stock gives `.pageTitle` `flex-shrink:1`
+   but no min-width override, so an over-long library name stays at its
+   min-content width and is clipped by `.headerLeft{overflow:hidden}` mid-glyph
+   instead of shrinking. */
+.skinHeader .pageTitle:not(.pageTitleWithLogo) {
+    font: 700 20px/1.2 var(--jflix-font);
+    letter-spacing: -0.006em;
+    color: var(--jflix-text-primary);
+    height: auto;
+    min-width: 0;
+    overflow: hidden;
+}
+
+/* Measured: at 390px the header spends 32px on the gutter, 96px on back+home
+   and 192px on the four right-hand buttons, leaving 61.5px for the title —
+   "Szukaj" at 20px/700 needs 63.3px and lost its descender to the clip above.
+   17px is the same step 10-global.css's `h3` uses and fits with room to spare. */
+html.layout-mobile .skinHeader .pageTitle:not(.pageTitleWithLogo) {
+    font: 700 17px/1.2 var(--jflix-font);
+}
+
+/* ----------------------------------------------------------------------------
+ * 6. Header tabs (§3.2, using §3.1's selected-nav treatment)
+ * Scoped to .skinHeader: the very same `.emby-tab-button` / `.emby-tabs-slider`
+ * classes build the Live TV guide's date strip inside the page body
+ * (guide.js:865), which must not inherit an app-bar-height tab.
+ *
+ * Stock gives the active tab a COLOUR CHANGE ONLY and ships no indicator at
+ * all, so the 2px accent bar is free real estate. Selected therefore carries
+ * three channels (colour + weight + bar) and survives greyscale (§5.3).
+ *
+ * TV: `.emby-tab-button.show-focus:focus{transform:scale(1.3)!important;
+ * background:0!important}` (emby-tabs.scss:24-28) and the `secondary-main`
+ * focus colour are stock TV behaviour §4.5 requires to survive — no rule here
+ * touches `transform` or `background` on a tab, and the focus colour rule is
+ * (0,2,1), above this file's (0,2,0) base.
+ * -------------------------------------------------------------------------- */
+
+.skinHeader .emby-tab-button {
+    font: var(--jflix-type-button);
+    line-height: var(--jflix-legacy-tabs-h);
+    letter-spacing: 0.005em;
+    color: var(--jflix-text-secondary);
+    height: var(--jflix-legacy-tabs-h);
+    padding-top: 0;
+    padding-bottom: 0;
+    padding-left: var(--jflix-space-4);
+    padding-right: var(--jflix-space-4);
+    transition-property: color;
+    transition-duration: var(--jflix-dur-fast);
+    transition-timing-function: var(--jflix-ease-exit);
+}
+
+.skinHeader .emby-tab-button:hover {
+    color: var(--jflix-text-primary);
+}
+
+.skinHeader .emby-tab-button-active {
+    color: var(--jflix-text-primary);
+    font-weight: 700;
+}
+
+/* `.emby-tab-button` is already `position:relative; overflow:hidden`, so the
+   bar needs nothing but placement. Inset by the button's own padding so it
+   underlines the label, not the hit area. Radius per §3.1's selected-nav row. */
+.skinHeader .emby-tab-button-active::after {
+    content: "";
+    position: absolute;
+    left: var(--jflix-space-4);
+    right: var(--jflix-space-4);
+    bottom: 0;
+    height: 2px;
+    border-radius: 2px 2px 0 0;
+    background-color: var(--jflix-accent);
+}
+
+/* ≥1600px stock lifts the tab strip onto the icon row with `margin-top:-4.3em`
+   — an em value derived from the stock padding-driven bar height, which no
+   longer exists. Re-derived from the token so the header is exactly
+   --jflix-legacy-bar-h tall. Same media query as
+   `librarybrowser.scss:391-398`; (0,2,0) beats its (0,1,0). */
+@media (min-width: 100em) {
+    .skinHeader .headerTabs {
+        margin-top: calc(-1 * var(--jflix-legacy-tabs-h));
+    }
+}
+
+/* ----------------------------------------------------------------------------
+ * 7. Nav drawer (§3.3, legacy half)
+ *
+ * Width is NOT touched: `navdrawer.js:206-211` writes `width:<240..320>px` and
+ * the matching `left:-<width>px` as inline styles, so widening the drawer with
+ * `!important` would leave the closed drawer's right edge sticking out by the
+ * difference. It already measures 320px at 390px viewport — inside §3.3's
+ * "80vw, max 360" envelope (312px) to within 8px — so there is nothing to fix.
+ * §3.3's "stock is content-width, 191px" describes the MODERN MuiDrawer.
+ *
+ * `--jflix-radius-lg` on the top corners is also skipped: this is a full-height
+ * left-edge drawer, not a bottom sheet, and rounding one top corner of a
+ * flush-left panel reads as a rendering bug. Reported, not silently dropped.
+ * -------------------------------------------------------------------------- */
+
+.mainDrawer {
+    background-color: var(--jflix-surface-1);
+    color: var(--jflix-text-secondary);
+    border: 0;
+}
+
+/* Elevation only while open — stock already scopes its own shadow to
+   `.drawer-open` (navdrawer.scss:31-33), so §7.1's no-shadow-at-rest holds: a
+   closed drawer is off-screen and shadowless. (0,2,0) ties stock, wins on order. */
+.mainDrawer.drawer-open {
+    box-shadow: var(--jflix-elev-4);
+}
+
+/* Drawer scrim. Stock is rgba(0,0,0,.3); §3.3 asks for --jflix-scrim-modal.
+   `.tmla-mask` lives on <body>, outside the hidden AppHeader wrapper, but it is
+   only ever un-`.hide`den by the legacy drawer, which cannot open in modern. */
+.tmla-mask {
+    background-color: var(--jflix-scrim-modal);
+}
+
+/* --- Rows -----------------------------------------------------------------
+ * Everything on `.navMenuOption` is `!important` in stock
+ * (`display/font-weight/margin/border-radius/padding`), so the padding
+ * override needs `!important` too — house rule 3's "only where stock used it".
+ * `padding: 0 16px` is symmetric, so it replaces both of stock's dir variants
+ * at once. Height comes from min-height + the stock `align-items:center`.
+ * -------------------------------------------------------------------------- */
+
+.mainDrawer .navMenuOption {
+    position: relative;
+    min-height: 48px;
+    padding: 0 var(--jflix-space-4) !important;
+    font: var(--jflix-type-body);
+    color: var(--jflix-text-secondary);
+    transition-property: background-color, color;
+    transition-duration: var(--jflix-dur-fast);
+    transition-timing-function: var(--jflix-ease-exit);
+}
+
+@media (pointer: coarse) {
+    .mainDrawer .navMenuOption {
+        min-height: 56px;
+    }
+}
+
+.mainDrawer .navMenuOptionIcon {
+    font-size: var(--jflix-icon-md);
+    color: var(--jflix-text-tertiary);
+    margin-right: var(--jflix-space-3);
+}
+
+[dir="rtl"] .mainDrawer .navMenuOptionIcon {
+    margin-left: var(--jflix-space-3);
+    margin-right: 0;
+}
+
+.mainDrawer .navMenuOptionText {
+    font: var(--jflix-type-body);
+    color: inherit;
+}
+
+.mainDrawer .navMenuOption:hover {
+    background: var(--jflix-overlay-hover);
+    color: var(--jflix-text-primary);
+}
+
+.mainDrawer .navMenuOption:hover .navMenuOptionIcon {
+    color: var(--jflix-text-primary);
+}
+
+.mainDrawer .navMenuOption:active {
+    background: var(--jflix-overlay-press);
+}
+
+/* An outer ring would be clipped by the drawer's own edge on a full-bleed row,
+   so the ring is inset. (0,3,0) beats 10-global.css's `.emby-button:focus-visible`
+   (0,2,0); the inner contour uses the drawer's own surface, not the page's. */
+.mainDrawer .navMenuOption:focus-visible {
+    box-shadow: inset 0 0 0 2px var(--jflix-surface-1), inset 0 0 0 4px var(--jflix-line-invert);
+}
+
+/* --- Selected row (LIST 2 in 00-tokens.css) --------------------------------
+ * The --jf-palette-primary-main bridge turns stock's
+ * `.navMenuOption-selected{background: primary-main !important}` into a
+ * FULL-BLEED ACCENT-RED BAR, which §1.1 forbids ("red never as a background
+ * wash") and which §2.3's five accent slots do not include. Replaced by §3.3's
+ * recipe: --jflix-overlay-selected + a 3px accent bar on the leading edge +
+ * weight 700, i.e. three channels, never colour alone (§5.3).
+ * `background` and `font-weight` need `!important` to beat stock's; the bar is a
+ * pseudo-element rather than `border-left` because the stock padding is
+ * `!important` and a border would shift the label by 3px.
+ * -------------------------------------------------------------------------- */
+
+.mainDrawer .navMenuOption-selected {
+    background: var(--jflix-overlay-selected) !important;
+    color: var(--jflix-text-primary);
+    font-weight: 700 !important;
+}
+
+.mainDrawer .navMenuOption-selected .navMenuOptionIcon {
+    color: var(--jflix-text-primary);
+}
+
+.mainDrawer .navMenuOption-selected::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 3px;
+    background-color: var(--jflix-accent);
+}
+
+[dir="rtl"] .mainDrawer .navMenuOption-selected::after {
+    left: auto;
+    right: 0;
+}
+
+/* Group headings ("Multimedia", "Administracja", "Użytkownik"). NOT uppercased:
+   §2.4 forbids uppercasing a string longer than 14 characters, and the Polish
+   labels here run to 19. --jflix-text-tertiary composites to rgb(152,152,152)
+   over --jflix-surface-1 = 6.39:1, clear of §5.1's 4.5 for 12px text. */
+.mainDrawer .sidebarHeader {
+    font: var(--jflix-type-label);
+    letter-spacing: 0.01em;
+    color: var(--jflix-text-tertiary);
+    padding-left: var(--jflix-space-4);
+    padding-right: var(--jflix-space-4);
+    margin: var(--jflix-space-6) 0 var(--jflix-space-2);
+}
+
+/* ----------------------------------------------------------------------------
+ * 8. TV (html.layout-tv — a LEGACY layout, so it uses this shell, §2.18)
+ * Placed last so it beats both §1's base declarations and the @media blocks
+ * regardless of the TV viewport's width (1920 also matches min-width:100em).
+ *
+ * The bar stays tall: stock measures 86.6px at a 20px root font, `--jflix-bar-h`
+ * would shrink it to 64, and the TV header is the D-pad's first stop — §5.2
+ * wants 48px minimum targets, 16px apart, at 3 metres. 88px keeps stock's
+ * proportion with the new token-driven geometry.
+ * The 5% inline gutter (--jflix-gutter's TV column) is already applied by §3
+ * and is the overscan-safe inset; no VERTICAL overscan is applied to the header
+ * — stock does not, and a 54px-inset app bar reads as broken.
+ * -------------------------------------------------------------------------- */
+
+html.layout-tv .skinHeader {
+    --jflix-legacy-bar-h: 88px;
+    --jflix-legacy-tabs-h: 88px;
+    --jflix-hdr-btn: var(--jflix-control-h);
+}
+
+/* On TV the header is `position:relative`, i.e. IN FLOW — a scrim hanging 140px
+   below it would dim page content that no artwork sits behind. Capped to the
+   header's own box. */
+html.layout-tv .skinHeader.semiTransparent::before {
+    height: 100%;
+}
+
+html.layout-tv .skinHeader .pageTitleWithDefaultLogo {
+    height: 36px;
+}
+
+html.layout-tv .skinHeader .pageTitleWithDefaultLogo::after {
+    font: 800 30px/36px var(--jflix-font);
+    letter-spacing: -0.03em;
+}
+
+html.layout-tv .skinHeader .pageTitle:not(.pageTitleWithLogo) {
+    font: 700 28px/1.2 var(--jflix-font);
+}
+
+html.layout-tv .skinHeader .currentTimeText {
+    font-size: 20px;
+}
+
+/* ============================================================================
+ * PAGE FRAME — deliberately NOT touched, and why
+ * ----------------------------------------------------------------------------
+ * `.libraryPage{padding-top:7em!important}`, `:not(.noSecondaryNavPage){7.5em}`,
+ * `.pageWithAbsoluteTabs{6.7em}` (≥100em), `.itemDetailPage{0}`,
+ * `.standalonePage{4.5em}` and `.absolutePageTabContent{top:6.9em!important}`
+ * are all SHARED with the modern layout, where apps/modern/AppOverrides.scss
+ * already forces them to 0!important — so any change here must be re-scoped to
+ * `#reactRoot > .mainAnimatedPages …`, and it would have to be re-derived for
+ * every one of the six rules and three root font sizes.
+ *
+ * The geometry contract above was chosen so that none of that is necessary.
+ * Measured against the stock paddings, after this file:
+ *   legacy-desktop 1920  header 64   vs 6.7em = 99.7px   → 35.7px of air (stock: 35.3)
+ *   legacy-desktop 1366  header 112  vs 7.5em = 111.6px  → 0.4px (stock: 0.6)
+ *   legacy-mobile   390  header 96   vs 7.5em = 108px    → 12px  (stock: 1.2)
+ *   tv             1920  header 88   (in flow, padding is additive)
+ * No overlap anywhere, and the only change is 11px more air above the first row
+ * on a phone. The 12px is reported rather than "fixed", because closing it
+ * means owning a shared, !important, em-based padding cascade for one module's
+ * benefit.
+ * ========================================================================== */
