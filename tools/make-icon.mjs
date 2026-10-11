@@ -92,6 +92,30 @@ function episodePicker(w, h) {
     return c;
 }
 
+/** Filmweb: a strip of film, the middle frame picked out, with the score a title gets beside it. */
+function filmweb(w, h) {
+    const c = canvas(w, h);
+    const u = h / 100;
+    roundRect(c, 0, 0, w, h, 0, BG);
+
+    // The strip, with its two rows of perforations.
+    roundRect(c, 12 * u, 26 * u, 96 * u, 48 * u, 3 * u, MUTED, 0.35);
+    for (let i = 0; i < 8; i++) {
+        roundRect(c, (16.5 + i * 11.5) * u, 29.5 * u, 6 * u, 5 * u, 1.2 * u, BG);
+        roundRect(c, (16.5 + i * 11.5) * u, 65.5 * u, 6 * u, 5 * u, 1.2 * u, BG);
+    }
+    // Three frames; the one in the middle is the title that was found.
+    [17, 46, 75].forEach((left, i) => {
+        roundRect(c, left * u, 38 * u, 26 * u, 24 * u, 2 * u, i === 1 ? ACCENT : BG, i === 1 ? 1 : 0.85);
+    });
+
+    // The rating beside it: one strong bar, a scale underneath filled most of the way.
+    roundRect(c, 120 * u, 34 * u, 28 * u, 9 * u, 4.5 * u, TEXT);
+    roundRect(c, 120 * u, 52 * u, 44 * u, 6 * u, 3 * u, MUTED, 0.45);
+    roundRect(c, 120 * u, 52 * u, 34 * u, 6 * u, 3 * u, ACCENT);
+    return c;
+}
+
 /* ------------------------------------------------------------------------ PNG encode */
 
 const CRC_TABLE = (() => {
@@ -150,7 +174,8 @@ function png(c) {
 
 const ICONS = {
     'pause-info-card': pauseInfoCard,
-    'episode-picker': episodePicker
+    'episode-picker': episodePicker,
+    'filmweb': filmweb
 };
 
 const outDir = join(root, 'dist', 'plugin');

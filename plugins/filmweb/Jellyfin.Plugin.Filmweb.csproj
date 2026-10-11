@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Jellyfin.Plugin.Filmweb</RootNamespace>
+    <AssemblyVersion>$(PluginVersion)</AssemblyVersion>
+    <FileVersion>$(PluginVersion)</FileVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(PluginVersion)' == ''">
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Matches the server this targets: Jellyfin 12.1, targetAbi 12.0.0.0. -->
+    <PackageReference Include="Jellyfin.Controller" Version="12.1.0" />
+    <!-- IHttpClientFactory, IMemoryCache, ILogger — the host already carries these, so they must NOT
+         be copied into the plugin zip; a FrameworkReference compiles against them without shipping
+         them. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Configuration\configPage.html" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The providers take their settings through an internal constructor, so tests can vary them
+         without a running Jellyfin behind Plugin.Instance. -->
+    <InternalsVisibleTo Include="Jellyfin.Plugin.Filmweb.Tests" />
+  </ItemGroup>
+
+</Project>
+

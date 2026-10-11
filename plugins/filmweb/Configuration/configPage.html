@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Filmweb</title>
+</head>
+<body>
+<div id="FilmwebConfigPage" data-role="page" class="page type-interior pluginConfigurationPage"
+     data-require="emby-input,emby-button,emby-checkbox,emby-select">
+    <div data-role="content">
+        <div class="content-primary">
+            <form id="FilmwebConfigForm">
+
+                <div class="verticalSection">
+                    <h2 class="sectionTitle">Filmweb</h2>
+                    <p class="fieldDescription">
+                        Filmweb.pl as a metadata source for films and series. Switch it on per library:
+                        Dashboard → Libraries → the library → tick <b>Filmweb</b> under the metadata
+                        downloaders and the image fetchers, and drag it above the others if it should
+                        win. Then use <i>Refresh metadata</i>, or <i>Identify</i> on a single title.
+                        Saving here takes effect on the next refresh — no restart.
+                    </p>
+                </div>
+
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="emby-checkbox-label">
+                        <input is="emby-checkbox" type="checkbox" id="PreferOriginalTitle" />
+                        <span>Use the original title as the name</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">
+                        Off names the item with Filmweb's Polish title and keeps the original one in the
+                        "Original title" field.
+                    </div>
+                </div>
+
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="emby-checkbox-label">
+                        <input is="emby-checkbox" type="checkbox" id="FetchPeople" />
+                        <span>Directors and cast</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">
+                        Filmweb does not publish character names, so its actors come without their
+                        roles. Jellyfin takes an item's people from the first downloader that has any:
+                        if Filmweb is above TMDb and you want TMDb's cast with roles, switch this off.
+                    </div>
+                </div>
+
+                <div class="inputContainer">
+                    <input is="emby-input" type="number" id="CastLimit" min="0" max="20" step="1"
+                           label="Actors per title" />
+                    <div class="fieldDescription">
+                        Each actor costs one more request to Filmweb, so a library scan gets slower as
+                        this grows. 0 brings in the directors only.
+                    </div>
+                </div>
+
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="emby-checkbox-label">
+                        <input is="emby-checkbox" type="checkbox" id="FetchCriticRating" />
+                        <span>Critic rating</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">
+                        The average of Filmweb's critics, on Jellyfin's 0–100 scale. The users' average
+                        always becomes the community rating.
+                    </div>
+                </div>
+
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="emby-checkbox-label">
+                        <input is="emby-checkbox" type="checkbox" id="FetchBackdrops" />
+                        <span>Offer stills as backdrops</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">
+                        Filmweb serves stills at most 900 px wide — below Jellyfin's default minimum for
+                        a backdrop, so they show up in the image picker but are not downloaded on their
+                        own unless you lower that minimum in the library's settings.
+                    </div>
+                </div>
+
+                <div>
+                    <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                        <span>Save</span>
+                    </button>
+                </div>
+
+            </form>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        (function () {
+            var pluginId = 'e3a85d17-6b0c-4f29-a1d4-9c7e2f50b846';
+            var checkboxes = ['PreferOriginalTitle', 'FetchPeople', 'FetchCriticRating', 'FetchBackdrops'];
+
+            function view() {
+                return document.querySelector('#FilmwebConfigPage');
+            }
+
+            document.querySelector('#FilmwebConfigPage').addEventListener('pageshow', function () {
+                Dashboard.showLoadingMsg();
+                ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                    var page = view();
+                    checkboxes.forEach(function (name) {
+                        page.querySelector('#' + name).checked = !!config[name];
+                    });
+                    page.querySelector('#CastLimit').value = config.CastLimit;
+                    Dashboard.hideLoadingMsg();
+                });
+            });
+
+            document.querySelector('#FilmwebConfigForm').addEventListener('submit', function (e) {
+                e.preventDefault();
+                Dashboard.showLoadingMsg();
+                ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                    var page = view();
+                    checkboxes.forEach(function (name) {
+                        config[name] = page.querySelector('#' + name).checked;
+                    });
+                    config.CastLimit = Math.max(0, Math.min(20, parseInt(page.querySelector('#CastLimit').value, 10) || 0));
+                    ApiClient.updatePluginConfiguration(pluginId, config).then(function (result) {
+                        Dashboard.processPluginConfigurationUpdateResult(result);
+                    });
+                });
+                return false;
+            });
+        })();
+    </script>
+</div>
+</body>
+</html>

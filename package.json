@@ -8,6 +8,7 @@
     "build": "node tools/build-addon.mjs",
     "build:bundles": "node tools/build-addon.mjs && node tools/build-addon.mjs --bundle pause-info-card --mods 10-row-tags,20-scroll-var,40-card-meta,50-pause-info --out dist/bundles/pause-info-card.js && node tools/build-addon.mjs --bundle episode-picker --mods 60-episode-picker --out dist/bundles/episode-picker.js",
     "build:plugin": "node tools/make-icon.mjs && node tools/build-plugin.mjs",
+    "test:plugin": "node tools/test-plugin.mjs",
     "apply": "node tools/apply-addon.mjs",
     "check": "node tools/addon-check.mjs"
   },

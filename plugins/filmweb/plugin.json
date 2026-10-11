@@ -1,0 +1,12 @@
+{
+  "guid": "e3a85d17-6b0c-4f29-a1d4-9c7e2f50b846",
+  "name": "Filmweb",
+  "assembly": "Jellyfin.Plugin.Filmweb",
+  "slug": "filmweb",
+  "category": "Metadata",
+  "owner": "TerminatorXL",
+  "targetAbi": "12.0.0.0",
+  "addon": false,
+  "overview": "Filmweb.pl as a metadata source for films and series",
+  "description": "Search Filmweb.pl from the Identify dialog and fill films and series from it: Polish title and synopsis, genres, production countries, premiere date, the users' and the critics' rating, directors and cast with photos, the Polish poster and stills. Uses the unofficial REST API of the Filmweb website."
+}

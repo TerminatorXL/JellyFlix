@@ -16,7 +16,8 @@
 // net10.0, which is newer than most machines' SDK.
 //
 // Run `npm run build` first: the add-on bundle is embedded into the DLL as a resource, so the zip is
-// only ever as fresh as dist/jellyflix-addon.user.js.
+// only ever as fresh as dist/jellyflix-addon.user.js. A plugin that carries no JavaScript says so
+// with "addon": false in its plugin.json, and is built from its C# alone.
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { deflateRawSync } from 'node:zlib';
@@ -46,7 +47,9 @@ const releaseBase = arg('base', 'https://raw.githubusercontent.com/TerminatorXL/
 const SDK_IMAGE = 'mcr.microsoft.com/dotnet/sdk:10.0';
 
 const bundle = join(root, 'dist', 'jellyflix-addon.user.js');
-if (!existsSync(bundle)) throw new Error('dist/jellyflix-addon.user.js is missing — run `npm run build` first');
+if (info.addon !== false && !existsSync(bundle)) {
+    throw new Error('dist/jellyflix-addon.user.js is missing — run `npm run build` first');
+}
 
 /* ------------------------------------------------------------------ compile */
 

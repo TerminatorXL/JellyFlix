@@ -2,14 +2,15 @@
 
 ***Polski** · [English](README.md)*
 
-Dwie wtyczki do klienta webowego **Jellyfin 12.x**, które przenoszą kilka zachowań znanych
-z Netfliksa. Instalujesz je z katalogu wtyczek samego Jellyfina — nic nie trzeba nigdzie wklejać ani
-podmieniać na serwerze.
+Trzy wtyczki do **Jellyfin 12.x**. Dwie przenoszą do klienta webowego kilka zachowań znanych
+z Netfliksa; trzecia robi z Filmwebu źródło metadanych. Instalujesz je z katalogu wtyczek samego
+Jellyfina — nic nie trzeba nigdzie wklejać ani podmieniać na serwerze.
 
 | | |
 |---|---|
 | **Pause Info Card** | Zatrzymujesz odtwarzanie i nad kadrem pojawia się logo filmu lub serialu, tytuł odcinka i opis. |
 | **Episode Picker** | Podczas odtwarzania serialu guzik w odtwarzaczu otwiera szufladę z odcinkami bieżącego sezonu i wyborem sezonu. Kliknięcie odcinka go włącza. |
+| **Filmweb** | [Filmweb.pl](https://www.filmweb.pl) jako źródło metadanych filmów i seriali: polskie tytuły i opisy, gatunki, ocena użytkowników i krytyków, obsada, plakaty. Z wyszukiwaniem w oknie „Identyfikuj”. |
 
 ![Karta pauzy](docs/img/pause-info-card.png)
 
@@ -24,6 +25,8 @@ podmieniać na serwerze.
 * Klienty natywne (Jellyfin dla **Android TV**, Kodi, Infuse) nie uruchamiają żadnego kodu webowego —
   nie ma tam `index.html` do wstrzyknięcia ani CSS-a — więc nic stąd do nich nie dotrze. Na pudełku
   z Android TV jest obejście: patrz [Android TV](#android-tv).
+* **Filmweb** jest wyjątkiem od dwóch ostatnich punktów: działa w całości na serwerze, więc to, co
+  pobierze, widać w każdym kliencie, także natywnym. Serwer musi mieć dostęp do `www.filmweb.pl`.
 
 ## Instalacja
 
@@ -33,14 +36,50 @@ podmieniać na serwerze.
    https://raw.githubusercontent.com/TerminatorXL/JellyFlix/main/manifest.json
    ```
 
-2. Katalog → zainstaluj **Pause Info Card**, **Episode Picker** albo obie.
+2. Katalog → zainstaluj **Pause Info Card**, **Episode Picker**, **Filmweb** albo dowolny ich zestaw.
 3. **Zrestartuj serwer.** Jellyfin nie ładuje wtyczki bez restartu — do tego czasu wszystko wygląda
    na zainstalowane i nic nie działa.
 4. Kokpit → Wtyczki → nazwa wtyczki, żeby wejść w jej ustawienia.
 
-Są od siebie niezależne: możesz zainstalować jedną albo obie.
+Są od siebie niezależne: możesz zainstalować jedną albo wszystkie trzy. Filmweb wymaga jeszcze
+jednego kroku, zanim cokolwiek zrobi — patrz [Filmweb](#filmweb).
 
 ![Obie wtyczki na liście wtyczek Jellyfina](docs/img/plugins-list.png)
+
+## Filmweb
+
+Trzecia wtyczka w ogóle nie dotyczy klienta webowego: robi z [Filmweb.pl](https://www.filmweb.pl)
+źródło metadanych, obok TMDb i OMDb. Sama instalacja nie wystarczy, bo Jellyfin pyta o źródła osobno
+dla każdej biblioteki:
+
+1. Kokpit → Biblioteki → edycja biblioteki, zaznacz **Filmweb** wśród dostawców metadanych (dla
+   filmów albo seriali) i wśród dostawców obrazów.
+2. Przeciągnij go nad pozostałe, jeśli ma wygrywać. Jellyfin wypełnia każde pole z pierwszego źródła,
+   które je ma, więc Filmweb na górze to polskie tytuły, opisy i gatunki oraz ocena z Filmwebu; niżej
+   uzupełnia tylko to, co inni zostawili puste.
+3. **Odśwież metadane** biblioteki albo użyj **Identyfikuj** na pojedynczym tytule. W „Identyfikuj”
+   pole *Filmweb* przyjmuje identyfikator tytułu albo wklejony w całości adres jego strony.
+
+Co przynosi: tytuł polski i oryginalny, opis, gatunki, kraje produkcji, datę premiery, średnią
+użytkowników jako ocenę społeczności i średnią krytyków jako ocenę krytyków, reżyserów i obsadę ze
+zdjęciami, polski plakat i kadry oraz link do strony tytułu.
+
+Co warto wiedzieć, zanim puścisz ją na całą bibliotekę:
+
+* **Dopasowanie jest celowo ostrożne.** Wyszukiwarka Filmwebu zawsze coś zwraca, więc skan bez
+  nadzoru przyjmuje tylko trafienie ze zgodnym rokiem (plus minus jeden) — a dla folderu bez roku
+  w nazwie tylko takie, którego tytuł jest dokładnie ten sam. Reszta zostaje nietknięta, zamiast
+  dostać opis innego filmu; od tego jest „Identyfikuj”.
+* **Bez nazw postaci.** Filmweb nie udostępnia, kto kogo grał, więc aktorzy przychodzą bez ról.
+  Jellyfin bierze osoby z pierwszego źródła, które jakieś ma: jeśli Filmweb jest pierwszy, a chcesz
+  obsadę z rolami z TMDb, wyłącz *Directors and cast* w ustawieniach wtyczki.
+* **Bez sezonów i odcinków.** Tylko filmy i seriale; reszta zostaje przy tym, co wypełnia ją teraz.
+* **Kadry mają najwyżej 900 px szerokości**, mniej niż domyślne minimum Jellyfina dla tła. Są
+  dostępne w wyborze obrazów, ale same się nie pobiorą, dopóki nie obniżysz tego minimum.
+* **API jest nieoficjalne.** To to samo, z którego korzysta strona Filmwebu, opisane przez
+  [filmweb-api](https://github.com/b44x/filmweb-api) — klient w tej wtyczce jest jego portem. Nie ma
+  klucza ani gwarancji, że się nie zmieni. Wtyczka pamięta odpowiedzi przez godzinę, wysyła najwyżej
+  cztery zapytania naraz i zwalnia, gdy serwer o to prosi.
 
 ## Android TV
 
@@ -79,6 +118,9 @@ arkuszowi na więcej: `data-jfx-row` nazywa wiersze na stronie głównej, `--jfl
 pozycję przewijania, a `data-jfx-overview`/`-genres`/`-runtime` wstawiają metadane kart do DOM-u.
 
 **Episode Picker** — miniatury, opisy i ich długość.
+
+**Filmweb** — czy nazwą pozycji ma być tytuł polski, czy oryginalny, czy pobierać reżyserów i obsadę
+i ilu aktorów, ocenę krytyków oraz kadry jako tła. Zapis działa od następnego odświeżenia metadanych.
 
 To, czego nie ma w Kokpicie, zmienisz per przeglądarka z konsoli — ustawienie jest zapamiętywane:
 
@@ -126,10 +168,15 @@ https://twoj-serwer/EpisodePicker/status
 * **`injected` większe od zera, a na ekranie nic** — strona serwera jest w porządku; włącz
   *Console logging* w ustawieniach wtyczki i poszukaj linii `[JellyFlix]` w konsoli przeglądarki.
 
+**Filmweb** niczego nie wstrzykuje, więc nie ma adresu statusu. Gdy tytuł nic od niego nie dostaje:
+sprawdź, czy Filmweb jest zaznaczony dla tej biblioteki i tego rodzaju pozycji; uruchom „Identyfikuj”
+na tytule, żeby zobaczyć, co zwraca wyszukiwanie; zajrzyj do logu serwera, w którym każda
+nieodczytana odpowiedź ma linię `Filmweb:`.
+
 ## Jak to działa
 
 jellyfin-web 12.1 **nie ma żadnego haka na własny JavaScript** — Kokpit przyjmuje wyłącznie Custom
-CSS. Dlatego każda wtyczka jest prawdziwą wtyczką Jellyfina i robi dwie rzeczy:
+CSS. Dlatego każda z dwóch wtyczek klienta webowego jest prawdziwą wtyczką Jellyfina i robi dwie rzeczy:
 
 * `IStartupFilter`, którego middleware dokleja jeden tag `<script>` do `index.html` w locie. Nic nie
   jest zmieniane na dysku, więc aktualizacja serwera tego nie cofnie, a tylko-do-odczytu web root
@@ -140,10 +187,16 @@ Obie wtyczki wożą ten sam rdzeń JavaScriptu. Ta, która załaduje się druga,
 i rejestruje wyłącznie własne moduły, zamiast ją zastępować — dzięki temu mogą działać razem na
 jednej stronie.
 
-Nie ma telemetrii i nic nie jest nigdzie wysyłane. Każde żądanie idzie do Twojego Jellyfina, do
-którego i tak jesteś zalogowany, z tokenem, który klient webowy już ma. Wszystkie są odczytem poza
+Nie ma telemetrii i te dwie niczego nigdzie nie wysyłają. Każde żądanie idzie do Twojego Jellyfina,
+do którego i tak jesteś zalogowany, z tokenem, który klient webowy już ma. Wszystkie są odczytem poza
 jednym: wybranie odcinka wysyła POST z poleceniem odtwarzania do Twojej własnej sesji, bo to jedyna
 droga, którą wstrzyknięty skrypt może uruchomić odtwarzanie.
+
+**Filmweb** to wtyczka zwykłego rodzaju — dostawcy metadanych i obrazów plus mały klient REST API
+pod spodem — i to ona jedna rozmawia ze światem. Serwer pyta `www.filmweb.pl` o tytuły, których
+szuka, czyli zdradza Filmwebowi ich nazwy tak samo, jak skan zdradza je już TMDb, a plakaty
+i zdjęcia pobiera z CDN-u Filmwebu, `fwcdn.pl`. W oknie „Identyfikuj” miniatury plakatów ładuje
+z tego CDN-u bezpośrednio Twoja przeglądarka.
 
 ## Budowanie u siebie
 
@@ -154,12 +207,13 @@ SDK na większości maszyn, więc C# kompiluje się w oficjalnym kontenerze.
 npm run build:bundles                              # JavaScript, osobny bundel na wtyczkę
 npm run build:plugin -- --plugin pause-info-card --version 1.2.2.0
 npm run build:plugin -- --plugin episode-picker  --version 1.0.4.0
+npm run build:plugin -- --plugin filmweb         --version 1.0.0.0   # sam C#, bez bundla
 ```
 
 Każdy build zapisuje `dist/plugin/<slug>_<wersja>.zip` i odświeża `manifest.json` o adres źródłowy
 i jego MD5, więc adres repozytorium działa od razu po pushu.
 
-Dodanie trzeciej wtyczki to dodanie katalogu w `plugins/` z plikiem `plugin.json` obok projektu C# —
+Dodanie kolejnej wtyczki to dodanie katalogu w `plugins/` z plikiem `plugin.json` obok projektu C# —
 skrypt budujący i manifest obsługują dowolną ich liczbę.
 
 ### Testy
@@ -172,6 +226,16 @@ tools/pw.sh tools/picker-check.mjs            # szuflada: sezony, odcinki, prze�
 tools/pw.sh tools/coexist-check.mjs           # obie wtyczki zainstalowane naraz
 ```
 
+Filmweb to C# bez przeglądarki, więc sprawdza się go inaczej — testami jednostkowymi na
+odpowiedziach zapisanych z API i jednym skryptem, który idzie przez prawdziwego Jellyfina do żywego
+API:
+
+```bash
+npm run test:plugin                           # testy jednostkowe, w kontenerze .NET SDK
+tools/pw.sh tools/filmweb-check.mjs           # „Identyfikuj” przez serwer, na żywym Filmwebie
+tools/pw.sh tools/filmweb-check.mjs --apply   # …i prawdziwa identyfikacja jednego filmu i serialu
+```
+
 ## Bez wtyczek
 
 `dist/jellyflix-addon.user.js` to ten sam kod w jednym pliku pod menedżer userscriptów
@@ -182,4 +246,5 @@ wyglądają dziwnie.
 ## Licencja
 
 MIT. Niezależny projekt inspirowany zachowaniem Netfliksa; nie zawiera jego logo, czcionek ani
-grafik i nie jest z nim powiązany.
+grafik i nie jest z nim powiązany. Z Filmwebem również nie: to, co pobiera wtyczka Filmweb, pochodzi
+z Filmweb.pl i należy do jego właścicieli.
