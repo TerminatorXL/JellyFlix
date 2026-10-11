@@ -1,3 +1,8 @@
+**1.0.1.0**
+
+- Listed under **Movies and shows** in the plugin catalogue, beside TMDb and OMDb. It was filed as
+  "Metadata", which is not a category in Jellyfin 12, so it only turned up under *Other*.
+
 **1.0.0.0** — first release.
 
 - Films and series: Polish title, original title, synopsis, genres, production countries, premiere

@@ -3,7 +3,7 @@
   "name": "Filmweb",
   "assembly": "Jellyfin.Plugin.Filmweb",
   "slug": "filmweb",
-  "category": "Metadata",
+  "category": "MoviesAndShows",
   "owner": "TerminatorXL",
   "targetAbi": "12.0.0.0",
   "addon": false,

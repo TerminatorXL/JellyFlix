@@ -41,19 +41,19 @@
     "guid": "e3a85d17-6b0c-4f29-a1d4-9c7e2f50b846",
     "versions": [
       {
-        "version": "1.0.0.0",
-        "changelog": "**1.0.0.0** — first release.\n\n- Films and series: Polish title, original title, synopsis, genres, production countries, premiere\n  date, the users' rating as the community rating and the critics' as the critic rating.\n- Directors and cast with photos. Filmweb does not publish character names, so actors come without\n  their roles.\n- The Polish poster, and stills offered as backdrops.\n- A **Filmweb** field in the Identify dialog that takes an id or a pasted page address, and a link\n  to the title's page among the item's external links.",
+        "version": "1.0.1.0",
+        "changelog": "**1.0.1.0**\n\n- Listed under **Movies and shows** in the plugin catalogue, beside TMDb and OMDb. It was filed as\n  \"Metadata\", which is not a category in Jellyfin 12, so it only turned up under *Other*.\n\n**1.0.0.0** — first release.\n\n- Films and series: Polish title, original title, synopsis, genres, production countries, premiere\n  date, the users' rating as the community rating and the critics' as the critic rating.\n- Directors and cast with photos. Filmweb does not publish character names, so actors come without\n  their roles.\n- The Polish poster, and stills offered as backdrops.\n- A **Filmweb** field in the Identify dialog that takes an id or a pasted page address, and a link\n  to the title's page among the item's external links.",
         "targetAbi": "12.0.0.0",
-        "sourceUrl": "https://raw.githubusercontent.com/TerminatorXL/JellyFlix/main/dist/plugin/filmweb_1.0.0.0.zip",
-        "checksum": "15206f4eff02cdccfbf1ad391b02ebb6",
-        "timestamp": "2026-10-11T12:50:02.0000000Z"
+        "sourceUrl": "https://raw.githubusercontent.com/TerminatorXL/JellyFlix/main/dist/plugin/filmweb_1.0.1.0.zip",
+        "checksum": "a94ed35b3b161fac8a16359330fa3f84",
+        "timestamp": "2026-10-11T13:09:59.0000000Z"
       }
     ],
     "name": "Filmweb",
     "description": "Search Filmweb.pl from the Identify dialog and fill films and series from it: Polish title and synopsis, genres, production countries, premiere date, the users' and the critics' rating, directors and cast with photos, the Polish poster and stills. Uses the unofficial REST API of the Filmweb website.",
     "overview": "Filmweb.pl as a metadata source for films and series",
     "owner": "TerminatorXL",
-    "category": "Metadata",
+    "category": "MoviesAndShows",
     "imageUrl": "https://raw.githubusercontent.com/TerminatorXL/JellyFlix/main/dist/plugin/filmweb.png"
   }
 ]
